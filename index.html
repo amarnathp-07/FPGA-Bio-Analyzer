@@ -1,0 +1,2310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Spartan-6 FPGA ICU Bio-Signal & Edge-AI Patient Monitor</title>
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    /* Hospital ICU Bedside Monitor + Visual Patient Avatar Layout */
+    .icu-deck {
+      display: grid;
+      grid-template-columns: 195px 1fr 265px;
+      gap: 12px;
+      background: #090d16;
+      border: 1px solid #1e293b;
+      border-radius: 14px;
+      padding: 14px;
+      color: #e2e8f0;
+      box-shadow: 0 8px 24px rgba(15, 23, 42, 0.16);
+    }
+    @media (max-width: 1080px) {
+      .icu-deck { grid-template-columns: 1fr; }
+    }
+
+    /* Visual Patient Avatar Card */
+    .avatar-panel {
+      background: #0f172a;
+      border: 1px solid #1e293b;
+      border-radius: 10px;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .avatar-title {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      color: #94a3b8;
+      text-transform: uppercase;
+      width: 100%;
+      display: flex;
+      justify-content: space-between;
+    }
+    .avatar-svg {
+      width: 150px;
+      height: 215px;
+      overflow: visible;
+    }
+    .organ-heart {
+      transition: transform 0.08s ease, fill 0.2s ease;
+      transform-origin: 83px 86px;
+    }
+    .organ-heart.pulse {
+      transform: scale(1.26);
+    }
+    .avatar-legend {
+      width: 100%;
+      font-size: 10px;
+      color: #94a3b8;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4px;
+      border-top: 1px solid #1e293b;
+      padding-top: 6px;
+    }
+
+    .icu-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+      font-size: 12px;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .icu-lead-tag {
+      color: #22c55e;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+    }
+    .icu-sub-tag {
+      color: #94a3b8;
+      font-family: ui-monospace, Consolas, monospace;
+      font-size: 11px;
+    }
+    #scopeCanvas {
+      width: 100%;
+      height: 280px;
+      display: block;
+      border-radius: 8px;
+      border: 1px solid #1e293b;
+      background: #06090f;
+      cursor: crosshair;
+    }
+    .icu-vitals {
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      background: #0f172a;
+      border: 1px solid #1e293b;
+      border-radius: 10px;
+      padding: 12px 14px;
+    }
+    .vital-block {
+      border-bottom: 1px solid #1e293b;
+      padding-bottom: 8px;
+      margin-bottom: 8px;
+    }
+    .vital-block:last-child {
+      border-bottom: none;
+      padding-bottom: 0;
+      margin-bottom: 0;
+    }
+    .vital-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 10.5px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      color: #94a3b8;
+    }
+    .heart-icon {
+      font-size: 16px;
+      color: #22c55e;
+      transition: transform 0.08s ease;
+      display: inline-block;
+    }
+    .heart-icon.beat {
+      transform: scale(1.45);
+      color: #4ade80;
+      text-shadow: 0 0 10px #22c55e;
+    }
+    .vital-num-hr {
+      font-size: 46px;
+      font-weight: 800;
+      line-height: 1.02;
+      color: #22c55e;
+      font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+      text-shadow: 0 0 14px rgba(34, 197, 94, 0.25);
+    }
+    .vital-num-hr.alarm {
+      color: #ef4444;
+      text-shadow: 0 0 14px rgba(239, 68, 68, 0.45);
+    }
+    .vital-num-amber {
+      font-size: 20px;
+      font-weight: 700;
+      color: #fbbf24;
+      font-family: ui-monospace, Consolas, monospace;
+    }
+    .sub-intervals {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      margin-top: 4px;
+      font-family: ui-monospace, Consolas, monospace;
+      font-size: 11.5px;
+    }
+    .sub-int-pill {
+      background: #1e293b;
+      padding: 4px 7px;
+      border-radius: 6px;
+      color: #e2e8f0;
+    }
+    .btn-inject-manual {
+      background: #16a34a;
+      color: #ffffff;
+      border: none;
+      padding: 8px 14px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 2px 8px rgba(22, 163, 74, 0.35);
+      transition: transform 0.06s ease, background 0.15s ease;
+    }
+    .btn-inject-manual:hover { background: #15803d; }
+    .btn-inject-manual:active { transform: scale(0.96); }
+
+    /* Fixed 3-Column Analytics Row */
+    .triple-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+      align-items: stretch;
+    }
+    .triple-grid > .card {
+      min-width: 0;
+      overflow: hidden;
+    }
+    #morphCanvas, #poincareCanvas {
+      width: 100% !important;
+      height: 190px !important;
+      display: block;
+    }
+    @media (max-width: 1180px) {
+      .triple-grid { grid-template-columns: 1fr; }
+    }
+
+    /* Confidence Guardrail Pill */
+    .guardrail-note {
+      margin-top: 8px;
+      padding: 6px 9px;
+      border-radius: 7px;
+      font-size: 11px;
+      font-weight: 600;
+      background: #f0fdfa;
+      color: #115e59;
+      border: 1px solid #99f6e4;
+    }
+    .guardrail-note.uncertain {
+      background: #fffbeb;
+      color: #92400e;
+      border-color: #fde68a;
+    }
+
+    /* Offline Session Vault & Comparison */
+    .vault-controls {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .vault-input {
+      padding: 6px 10px;
+      border: 1px solid #cbd5e1;
+      border-radius: 7px;
+      font-size: 12px;
+      min-width: 170px;
+    }
+    .vault-compare-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 10px;
+    }
+    @media (max-width: 900px) {
+      .vault-compare-grid { grid-template-columns: 1fr; }
+    }
+    .vault-metric-box {
+      border: 1px solid #e2e8f0;
+      background: #f8fafc;
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-size: 12px;
+    }
+    .vault-metric-box strong {
+      display: block;
+      font-size: 13px;
+      color: #0f172a;
+      margin-bottom: 4px;
+    }
+
+    /* Alarm Rhythm Strip Gallery */
+    .alarm-strips-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+      gap: 10px;
+    }
+    .strip-card {
+      border: 1px solid #fecaca;
+      background: #fef2f2;
+      border-radius: 10px;
+      padding: 8px 10px;
+    }
+    .strip-card-head {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      font-weight: 700;
+      color: #b91c1c;
+      margin-bottom: 5px;
+    }
+    .strip-canvas {
+      width: 100%;
+      height: 76px;
+      background: #fff5f5;
+      border: 1px solid #fca5a5;
+      border-radius: 6px;
+      display: block;
+    }
+
+    /* Comprehensive Clinical Report Sheet */
+    .report-sheet {
+      background: #ffffff;
+      border: 1px solid #cbd5e1;
+      border-radius: 14px;
+      padding: 18px 20px;
+      box-shadow: 0 4px 14px rgba(15, 23, 42, 0.05);
+    }
+    .report-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      border-bottom: 2px solid #0f172a;
+      padding-bottom: 10px;
+      margin-bottom: 14px;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .report-grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+    @media (max-width: 960px) {
+      .report-grid-3 { grid-template-columns: 1fr; }
+    }
+    .rep-graph-box {
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 10px;
+      background: #f8fafc;
+      min-width: 0;
+    }
+    .rep-graph-box h3 {
+      font-size: 12px;
+      font-weight: 700;
+      color: #0f172a;
+      margin-bottom: 2px;
+    }
+    .rep-legend-bar {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      font-size: 10.5px;
+      color: #334155;
+      margin: 4px 0 6px;
+      font-weight: 600;
+    }
+    .rep-legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .rep-canvas {
+      width: 100%;
+      height: 140px;
+      background: #ffffff;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      display: block;
+    }
+    .summary-box {
+      background: #f0fdfa;
+      border: 1px solid #99f6e4;
+      border-left: 4px solid #0d9488;
+      border-radius: 8px;
+      padding: 12px 14px;
+      font-size: 13px;
+      line-height: 1.55;
+      color: #0f172a;
+    }
+    .summary-box.alarm-summary {
+      background: #fef2f2;
+      border-color: #fecaca;
+      border-left-color: #dc2626;
+    }
+    @media print {
+      body { background: #ffffff; padding: 0; }
+      .no-print, .conn-controls, .studio-panel, .icu-deck, .triple-grid, .dual-grid { display: none !important; }
+      .report-sheet { border: none; box-shadow: none; padding: 0; }
+      .report-grid-3 { grid-template-columns: 1fr; gap: 10px; }
+      .rep-canvas { height: 150px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <!-- Top Clinical Header -->
+    <header class="topbar no-print">
+      <div class="brand">
+        <span class="badge">SPARTAN-6 RTL + EDGE-AI • 250 HZ CENTRAL TELEMETRY</span>
+        <h1>Hospital Bio-Signal & Edge-AI Patient Monitor</h1>
+      </div>
+
+      <div class="conn-controls">
+        <select id="careProfileSelect" class="select-pill" title="Care-Area Clinical Profile">
+          <option value="ICU" selected>Profile: ICU (50–120 BPM)</option>
+          <option value="OR">Profile: OR / Anesthesia (45–110 BPM)</option>
+          <option value="STEPDOWN">Profile: Step-Down Ward (50–130 BPM)</option>
+        </select>
+        <div id="connStatus" class="status-pill demo">
+          <span class="dot"></span>
+          <span id="connText">Monitor Active</span>
+        </div>
+        <button id="btnUsb" class="btn btn-dark">Connect USB (115200)</button>
+        <button id="btnBle" class="btn btn-primary">Connect BLE</button>
+        <button id="btnAudio" class="btn btn-outline">QRS Beep: OFF</button>
+        <button id="btnGenReport" class="btn btn-accent">Print 3-Signal Report</button>
+      </div>
+    </header>
+
+    <!-- Diagnostic Classification Banner -->
+    <section id="alertBanner" class="alert-banner normal no-print">
+      <div class="alert-left">
+        <span class="micro-label">REAL-TIME CLINICAL & EDGE-AI DIAGNOSIS (ALARM FATIGUE FILTERED)</span>
+        <div id="alertTitle" class="alert-title">Normal Sinus Rhythm — Continuous Sweep Active</div>
+      </div>
+      <div class="alert-right">
+        <div class="latency-chip">Sweep: <strong id="fpsStat">60</strong> FPS | Stream: <strong id="ppsStat">250</strong> Hz</div>
+        <div id="codeBadge" class="code-badge">HW STATUS: 00</div>
+      </div>
+    </section>
+
+    <!-- Live Heartbeat Injector & Condition Controller -->
+    <section class="studio-panel no-print">
+      <div class="studio-row">
+        <div class="studio-group">
+          <span class="micro-label">1. LIVE HEARTBEAT INJECTOR & CLINICAL RHYTHM PRESETS</span>
+          <div class="preset-btns">
+            <button id="btnManualBeat" class="btn-inject-manual" title="Shortcut: Press SPACEBAR">
+              ♥ Inject 1 Heartbeat (Space)
+            </button>
+            <button class="preset-btn active" data-preset="normal">Auto: Normal (75 BPM)</button>
+            <button class="preset-btn" data-preset="tachy">Auto: Tachycardia (148 BPM)</button>
+            <button class="preset-btn" data-preset="brady">Auto: Bradycardia (45 BPM)</button>
+            <button class="preset-btn" data-preset="pvc">Auto: PVC Arrhythmia</button>
+            <button class="preset-btn" data-preset="st_elev">Auto: ST-Elevation (Ischemia)</button>
+            <button class="preset-btn" data-preset="manual">Manual Beat-by-Beat</button>
+            <button class="preset-btn" data-preset="fatigue">sEMG Fatigue</button>
+            <button class="preset-btn" data-preset="eeg">EEG Alpha/Beta</button>
+          </div>
+        </div>
+
+        <div class="studio-group">
+          <span class="micro-label">2. NOISE INJECTION & CSV REPLAY</span>
+          <div class="slider-row">
+            <label class="slider-item">
+              <span>50Hz Hum: <strong id="humVal">5%</strong></span>
+              <input type="range" id="humSlider" min="0" max="100" value="5" />
+            </label>
+            <label class="slider-item">
+              <span>Drift: <strong id="driftVal">5%</strong></span>
+              <input type="range" id="driftSlider" min="0" max="100" value="5" />
+            </label>
+            <button id="btnLeadOff" class="btn btn-outline btn-sm">Lead-Off</button>
+            <label class="btn btn-outline btn-sm file-btn">
+              Replay CSV
+              <input type="file" id="csvFileInput" accept=".csv,.txt" hidden />
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div class="studio-row dsp-row">
+        <div class="studio-group">
+          <span class="micro-label">3. HARDWARE / DSP FILTER STAGE & EHR INTEROPERABILITY</span>
+          <div class="filter-toggles">
+            <label class="chk-pill"><input type="checkbox" id="chkNotch" checked /> 50 Hz IIR Notch</label>
+            <label class="chk-pill"><input type="checkbox" id="chkBandpass" checked /> Bandpass (0.5–40 Hz)</label>
+            <label class="chk-pill"><input type="checkbox" id="chkShowRaw" /> Show Raw Unfiltered Trace</label>
+          </div>
+        </div>
+
+        <div class="tool-group">
+          <div class="segmented-control">
+            <button class="seg-btn active" data-mode="ECG">ECG</button>
+            <button class="seg-btn" data-mode="sEMG">sEMG</button>
+            <button class="seg-btn" data-mode="EEG">EEG</button>
+          </div>
+          <select id="sweepSpeedSelect" class="select-pill">
+            <option value="600" selected>25 mm/s (2.4s)</option>
+            <option value="300">50 mm/s (1.2s)</option>
+          </select>
+          <select id="gainSelect" class="select-pill">
+            <option value="1" selected>Gain: 1.0x</option>
+            <option value="2">Gain: 2.0x</option>
+            <option value="4">Gain: 4.0x</option>
+          </select>
+          <button id="btnFreeze" class="btn btn-outline btn-sm">Freeze & Calipers</button>
+          <button id="btnClear" class="btn btn-outline btn-sm">Clear</button>
+          <button id="btnExport" class="btn btn-outline btn-sm">Export CSV</button>
+          <button id="btnFhirExport" class="btn btn-outline btn-sm" title="Export Hospital HL7 FHIR R4 Observation JSON">Export HL7 FHIR</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Authentic Hospital Bedside ICU Monitor Screen + Visual Patient Avatar -->
+    <section class="icu-deck no-print">
+      <!-- Visual Patient Avatar -->
+      <aside class="avatar-panel">
+        <div class="avatar-title">
+          <span>PATIENT AVATAR</span>
+          <span id="avatarProfileTag" style="color:#38bdf8">ICU</span>
+        </div>
+
+        <svg class="avatar-svg" viewBox="0 0 150 220" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="75" cy="28" r="19" fill="#1e293b" stroke="#475569" stroke-width="1.5" />
+          <path d="M40,62 C40,52 110,52 110,62 L118,145 L102,147 L96,95 L96,178 L54,178 L54,95 L48,147 L32,145 Z"
+                fill="#1e293b" stroke="#475569" stroke-width="1.5" stroke-linejoin="round" />
+          <ellipse id="avatarBrain" cx="75" cy="25" rx="13" ry="10" fill="#334155" stroke="#64748b" stroke-width="1.2" />
+          <circle id="leadRA" cx="61" cy="70" r="3.5" fill="#22c55e" />
+          <circle id="leadLA" cx="89" cy="70" r="3.5" fill="#22c55e" />
+          <circle id="leadLL" cx="86" cy="122" r="3.5" fill="#22c55e" />
+          <path id="avatarHeart" class="organ-heart"
+                d="M83,79 C80,74 72,74 72,82 C72,89 83,96 83,96 C83,96 94,89 94,82 C94,74 86,74 83,79 Z"
+                fill="#22c55e" />
+          <ellipse id="avatarMuscle" cx="39" cy="118" rx="5.5" ry="16" transform="rotate(8 39 118)"
+                   fill="#334155" stroke="#64748b" stroke-width="1.2" />
+          <g id="avatarLeadOffX" style="display:none">
+            <line x1="55" y1="64" x2="95" y2="104" stroke="#ef4444" stroke-width="3.5" stroke-linecap="round" />
+            <line x1="95" y1="64" x2="55" y2="104" stroke="#ef4444" stroke-width="3.5" stroke-linecap="round" />
+          </g>
+        </svg>
+
+        <div class="avatar-legend">
+          <span>♥ <strong id="avHeartState" style="color:#22c55e">Sinus</strong></span>
+          <span>⚡ <strong id="avLeadState" style="color:#22c55e">Leads OK</strong></span>
+          <span>💪 <strong id="avEmgState" style="color:#94a3b8">Fresh</strong></span>
+          <span>🧠 <strong id="avEegState" style="color:#94a3b8">Alpha</strong></span>
+        </div>
+      </aside>
+
+      <!-- Sweeping ICU Phosphor Oscilloscope -->
+      <div>
+        <div class="icu-header">
+          <span class="icu-lead-tag" id="icuLeadLabel">II • ECG 25 mm/s • 1.0 mV/cm • FILTERED</span>
+          <span class="icu-sub-tag" id="caliperReadout">Sweeping Erase-Bar Trace • Click "Freeze & Calipers" to measure Δt / ΔV</span>
+        </div>
+        <canvas id="scopeCanvas"></canvas>
+      </div>
+
+      <!-- Numeric Vitals + ST-Segment & QTc Sub-Intervals -->
+      <aside class="icu-vitals">
+        <div class="vital-block">
+          <div class="vital-head">
+            <span id="kpi1Label">ECG HR (BPM)</span>
+            <span id="heartIcon" class="heart-icon">♥</span>
+          </div>
+          <div id="kpi1Val" class="vital-num-hr">75</div>
+          <div id="hrLimitsLabel" style="font-size: 11px; color: #64748b; margin-top: 2px;">Limits: 50 – 120 BPM</div>
+        </div>
+
+        <div class="vital-block">
+          <div class="vital-head"><span>CARDIAC SUB-INTERVALS (12SL)</span></div>
+          <div class="sub-intervals">
+            <div class="sub-int-pill">ST: <strong id="kpiStVal" style="color:#22c55e">+0.02</strong> mV</div>
+            <div class="sub-int-pill">QTc: <strong id="kpiQtcVal" style="color:#38bdf8">412</strong> ms</div>
+          </div>
+          <div style="font-size: 11.5px; color: #94a3b8; margin-top: 5px;">
+            R-R: <strong id="kpiRrVal" style="color:#e2e8f0">800</strong> ms | Vpp: <strong id="kpiVpp" style="color:#e2e8f0">1.98</strong> V
+          </div>
+        </div>
+
+        <div class="vital-block">
+          <div class="vital-head"><span>MIT-BIH MATCH / SPECTRAL MDF</span></div>
+          <div class="vital-num-amber"><span id="kpiCorr">96</span><small style="font-size:13px">%</small> <small style="font-size:12px;color:#94a3b8">| <span id="kpiMdf">15.6</span> Hz</small></div>
+          <div style="font-size: 11px; color: #94a3b8; margin-top: 2px;">Dom Freq: <strong id="kpiDomFreq" style="color:#e2e8f0">3.9</strong> Hz</div>
+        </div>
+      </aside>
+    </section>
+
+    <!-- Edge-AI Inference + MIT-BIH Morphology + HRV Poincaré Plot Row -->
+    <section class="triple-grid no-print">
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <h2>Edge-AI Rhythm & Morphology Classifier</h2>
+            <span class="subtext">Multi-Feature Inference + Uncertainty Guardrail</span>
+          </div>
+          <span class="badge-soft" id="aiLatencyBadge">Infer: 0.2 ms</span>
+        </div>
+        <div class="ai-bars">
+          <div class="ai-bar-row">
+            <div class="ai-bar-label"><span>Normal Sinus / Baseline</span><strong id="probNormal">0%</strong></div>
+            <div class="progress-track"><div id="barNormal" class="progress-fill teal" style="width: 0%"></div></div>
+          </div>
+          <div class="ai-bar-row">
+            <div class="ai-bar-label"><span>Arrhythmia / ST-Segment Anomaly</span><strong id="probArr">0%</strong></div>
+            <div class="progress-track"><div id="barArr" class="progress-fill red" style="width: 0%"></div></div>
+          </div>
+          <div class="ai-bar-row">
+            <div class="ai-bar-label"><span>Neuromuscular Fatigue (sEMG Shift)</span><strong id="probFatigue">0%</strong></div>
+            <div class="progress-track"><div id="barFatigue" class="progress-fill amber" style="width: 0%"></div></div>
+          </div>
+          <div class="ai-bar-row">
+            <div class="ai-bar-label"><span>Electrode Lead-Off / Low Confidence</span><strong id="probNoise">0%</strong></div>
+            <div class="progress-track"><div id="barNoise" class="progress-fill slate" style="width: 0%"></div></div>
+          </div>
+        </div>
+        <div id="aiGuardrailNote" class="guardrail-note">
+          Guardrail Status: HIGH CONFIDENCE — Signal quality verified for classification.
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <h2 id="morphTitle">MIT-BIH Reference vs. Live Beat</h2>
+            <span class="subtext" id="morphSub">Normalized P-QRS-T Correlation Overlay</span>
+          </div>
+          <span class="badge-soft" id="morphBadge">Corr: --%</span>
+        </div>
+        <canvas id="morphCanvas"></canvas>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <h2>HRV Poincaré Plot (RRₙ vs. RRₙ₊₁)</h2>
+            <span class="subtext">Beat-to-Beat Rhythm Stability Map</span>
+          </div>
+          <span class="badge-soft" id="sdnnBadge">SDNN: 0 ms</span>
+        </div>
+        <canvas id="poincareCanvas"></canvas>
+      </div>
+    </section>
+
+    <!-- Dual Spectral Row -->
+    <section class="dual-grid no-print">
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <h2>64-Point Radix-2 FFT Power Spectrum</h2>
+            <span class="subtext">0 Hz – 125 Hz Nyquist Bandwidth</span>
+          </div>
+          <span class="badge-soft">Peak Hold</span>
+        </div>
+        <canvas id="fftCanvas"></canvas>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <h2>Time-Frequency Waterfall Spectrogram</h2>
+            <span class="subtext">Scrolling Spectral Power Density Over Time</span>
+          </div>
+          <span class="badge-soft">0–125 Hz</span>
+        </div>
+        <canvas id="waterfallCanvas"></canvas>
+      </div>
+    </section>
+
+    <!-- Offline Session Vault & Side-by-Side Comparison -->
+    <section class="card no-print">
+      <div class="card-header">
+        <div>
+          <h2>Offline Session Vault & Baseline Comparison</h2>
+          <span class="subtext">Save Named Snapshots Locally & Compare Live Vitals Against a Stored Session</span>
+        </div>
+        <div class="vault-controls">
+          <input id="snapshotNameInput" class="vault-input" type="text" placeholder="Snapshot label (e.g. Baseline_Rest)" />
+          <button id="btnSaveSnapshot" class="btn btn-primary btn-sm">Save Snapshot</button>
+          <select id="snapshotSelect" class="select-pill">
+            <option value="">-- Select Saved Snapshot --</option>
+          </select>
+          <button id="btnDeleteSnapshot" class="btn btn-outline btn-sm">Delete</button>
+        </div>
+      </div>
+      <div id="vaultCompareGrid" class="vault-compare-grid">
+        <div class="vault-metric-box">
+          <strong>Saved Snapshot</strong>
+          <span id="snapSummaryText">No snapshot selected. Save a snapshot to compare against live telemetry.</span>
+        </div>
+        <div class="vault-metric-box">
+          <strong>Live Telemetry</strong>
+          <span id="liveCompareText">HR: 75 BPM | ST: +0.02 mV | MDF: 15.6 Hz</span>
+        </div>
+        <div class="vault-metric-box">
+          <strong>Delta (Live − Saved)</strong>
+          <span id="deltaCompareText">Select a saved snapshot to compute differences.</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Auto-Captured 6-Second Alarm Rhythm Strips -->
+    <section class="card no-print">
+      <div class="card-header">
+        <div>
+          <h2>Auto-Captured Diagnostic Alarm Rhythm Strips</h2>
+          <span class="subtext">Frozen Waveform Snapshots Triggered Automatically on Sustained Clinical Anomalies</span>
+        </div>
+        <button id="btnClearStrips" class="btn btn-outline btn-sm">Clear Strips</button>
+      </div>
+      <div id="alarmStripsContainer" class="alarm-strips-grid">
+        <div class="log-empty">No alarm strips captured yet. Trigger Tachycardia, PVC, ST-Elevation, or Fatigue to auto-capture a strip.</div>
+      </div>
+    </section>
+
+    <!-- Comprehensive 3-Signal Diagnostic Report (ECG + sEMG + EEG vs. Normal Baseline + Color Legends + Technical & Plain-English Summaries) -->
+    <section id="clinicalReportSection" class="report-sheet">
+      <div class="report-header">
+        <div>
+          <span class="badge">MULTI-MODAL BIO-SIGNAL DIAGNOSTIC & COMPARISON REPORT</span>
+          <h2 style="font-size: 17px; color: #0f172a;">Spartan-6 FPGA + Edge-AI Clinical Evaluation Summary</h2>
+          <span class="subtext" id="reportTimestamp">Generated: Live Session</span>
+        </div>
+        <button id="btnRefreshReport" class="btn btn-outline btn-sm no-print">Update Report & Print</button>
+      </div>
+
+      <div class="report-grid-3">
+        <div class="rep-graph-box">
+          <h3>1. Lead-I ECG (Tested vs. Normal Baseline)</h3>
+          <div class="rep-legend-bar">
+            <span class="rep-legend-item"><span style="width:15px; border-top:2px dashed #3b82f6;"></span> Normal Ref (75 BPM)</span>
+            <span class="rep-legend-item"><span style="width:15px; border-top:2.5px solid #0d9488;"></span> Tested (Normal)</span>
+            <span class="rep-legend-item"><span style="width:15px; border-top:2.5px solid #dc2626;"></span> Tested (Anomaly)</span>
+          </div>
+          <canvas id="repEcgCanvas" class="rep-canvas"></canvas>
+        </div>
+
+        <div class="rep-graph-box">
+          <h3>2. Surface EMG (Tested vs. Normal Baseline)</h3>
+          <div class="rep-legend-bar">
+            <span class="rep-legend-item"><span style="width:15px; border-top:2px dashed #3b82f6;"></span> Normal Ref (Fresh)</span>
+            <span class="rep-legend-item"><span style="width:15px; border-top:2.5px solid #0d9488;"></span> Tested (Normal)</span>
+            <span class="rep-legend-item"><span style="width:15px; border-top:2.5px solid #dc2626;"></span> Tested (Fatigue)</span>
+          </div>
+          <canvas id="repEmgCanvas" class="rep-canvas"></canvas>
+        </div>
+
+        <div class="rep-graph-box">
+          <h3>3. Neural EEG (Tested vs. Normal Baseline)</h3>
+          <div class="rep-legend-bar">
+            <span class="rep-legend-item"><span style="width:15px; border-top:2px dashed #3b82f6;"></span> Normal Ref (Alpha)</span>
+            <span class="rep-legend-item"><span style="width:15px; border-top:2.5px solid #0d9488;"></span> Tested EEG</span>
+          </div>
+          <canvas id="repEegCanvas" class="rep-canvas"></canvas>
+        </div>
+      </div>
+
+      <div id="clinicalSummaryBox" class="summary-box">
+        <strong>Automated Clinical Summary:</strong> Analyzing tested heartbeat and multi-modal bio-signal telemetry...
+      </div>
+
+      <div id="patientFriendlySummaryBox" class="summary-box" style="margin-top: 12px; background: #eff6ff; border-color: #bfdbfe; border-left-color: #2563eb;">
+        <strong>In Simple Words (Easy-to-Read Summary):</strong> Generating plain-English explanation...
+      </div>
+    </section>
+
+    <!-- Anomaly Event Log -->
+    <section class="card">
+      <div class="card-header">
+        <div>
+          <h2>Hardware & Edge-AI Anomaly Event Log</h2>
+          <span class="subtext">Timestamped Diagnostic Events for Lab Record & Viva</span>
+        </div>
+        <button id="btnClearLog" class="btn btn-outline btn-sm no-print">Clear Log</button>
+      </div>
+      <div id="eventLog" class="event-log">
+        <div class="log-empty">No anomaly events recorded. System monitoring active.</div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+  (() => {
+    const SERVICE_UUID = '4fafc201-1fb5-459e-8fcc-c5c9c331914b';
+    const CHARACTERISTIC_UUID = 'beb5483e-36e1-4688-b7f5-ea07361b26a8';
+    const VAULT_STORAGE_KEY = 'spartan6_biosignal_vault_v1';
+    let SWEEP_LEN = 600;
+
+    const CARE_PROFILES = {
+      ICU: { name: 'ICU', hrLow: 50, hrHigh: 120, stLimit: 0.15 },
+      OR: { name: 'OR', hrLow: 45, hrHigh: 110, stLimit: 0.12 },
+      STEPDOWN: { name: 'STEP-DOWN', hrLow: 50, hrHigh: 130, stLimit: 0.20 },
+    };
+
+    class BioDSP {
+      constructor(sampleRate = 250, fftSize = 64) {
+        this.fs = sampleRate;
+        this.N = fftSize;
+        this.halfN = fftSize >> 1;
+        this.peakHold = new Float32Array(this.halfN);
+        this.mdfHistory = [];
+        this.rrHistoryMs = [];
+
+        this.hann = new Float32Array(this.N);
+        this.cosTable = new Float32Array(this.halfN);
+        this.sinTable = new Float32Array(this.halfN);
+        for (let i = 0; i < this.N; i++) this.hann[i] = 0.5 * (1 - Math.cos((2 * Math.PI * i) / (this.N - 1)));
+        for (let i = 0; i < this.halfN; i++) {
+          this.cosTable[i] = Math.cos((2 * Math.PI * i) / this.N);
+          this.sinTable[i] = Math.sin((2 * Math.PI * i) / this.N);
+        }
+
+        this.notchState = { x1: 0, x2: 0, y1: 0, y2: 0 };
+        const w0 = (2 * Math.PI * 50) / this.fs;
+        const alpha = Math.sin(w0) / (2 * 12);
+        const a0 = 1 + alpha;
+        this.notchCoeffs = {
+          b0: 1 / a0, b1: (-2 * Math.cos(w0)) / a0, b2: 1 / a0,
+          a1: (-2 * Math.cos(w0)) / a0, a2: (1 - alpha) / a0,
+        };
+
+        this.hpState = { prevX: 128, prevY: 0 };
+        this.lpState = 128;
+
+        this.mitBihTemplate = new Float32Array(48);
+        for (let i = 0; i < 48; i++) {
+          let v = 0.25;
+          if (i >= 6 && i <= 12) v += 0.12 * Math.sin(((i - 6) / 6) * Math.PI);
+          else if (i === 19) v -= 0.12;
+          else if (i === 21) v = 1.0;
+          else if (i === 23) v -= 0.18;
+          else if (i >= 30 && i <= 40) v += 0.20 * Math.sin(((i - 30) / 10) * Math.PI);
+          this.mitBihTemplate[i] = v;
+        }
+      }
+
+      reset() {
+        this.peakHold.fill(0);
+        this.mdfHistory = [];
+        this.rrHistoryMs = [];
+        this.notchState = { x1: 0, x2: 0, y1: 0, y2: 0 };
+        this.hpState = { prevX: 128, prevY: 0 };
+        this.lpState = 128;
+      }
+
+      filterSample(rawVal, enableNotch, enableBandpass, mode) {
+        let x = rawVal;
+        const { b0, b1, b2, a1, a2 } = this.notchCoeffs;
+        const ns = this.notchState;
+        const hp = this.hpState;
+        const lpAlpha = mode === 'sEMG' ? 0.85 : 0.52;
+
+        if (enableNotch) {
+          const y = b0 * x + b1 * ns.x1 + b2 * ns.x2 - a1 * ns.y1 - a2 * ns.y2;
+          ns.x2 = ns.x1; ns.x1 = x; ns.y2 = ns.y1; ns.y1 = y;
+          x = y;
+        }
+        if (enableBandpass) {
+          const hpOut = 0.96 * (hp.prevY + x - hp.prevX);
+          hp.prevX = x; hp.prevY = hpOut;
+          this.lpState = this.lpState + lpAlpha * ((hpOut + 128) - this.lpState);
+          x = this.lpState;
+        }
+        return Math.max(0, Math.min(255, Math.round(x)));
+      }
+
+      computeSpectrum(samples64) {
+        const real = new Float32Array(this.N);
+        const imag = new Float32Array(this.N);
+        let mean = 0;
+        for (let i = 0; i < this.N; i++) mean += samples64[i];
+        mean /= this.N;
+        for (let i = 0; i < this.N; i++) real[i] = (samples64[i] - mean) * this.hann[i];
+
+        let j = 0;
+        for (let i = 0; i < this.N - 1; i++) {
+          if (i < j) [real[i], real[j]] = [real[j], real[i]];
+          let k = this.N >> 1;
+          while (k <= j) { j -= k; k >>= 1; }
+          j += k;
+        }
+
+        for (let size = 2; size <= this.N; size <<= 1) {
+          const half = size >> 1;
+          const step = this.N / size;
+          for (let i = 0; i < this.N; i += size) {
+            let k = 0;
+            for (let m = i; m < i + half; m++) {
+              const tReal = real[m + half] * this.cosTable[k] + imag[m + half] * this.sinTable[k];
+              const tImag = -real[m + half] * this.sinTable[k] + imag[m + half] * this.cosTable[k];
+              real[m + half] = real[m] - tReal;
+              imag[m + half] = imag[m] - tImag;
+              real[m] += tReal;
+              imag[m] += tImag;
+              k += step;
+            }
+          }
+        }
+
+        const magnitudes = new Float32Array(this.halfN);
+        let totalPower = 0, maxMag = 0, maxBin = 1;
+        for (let b = 1; b < this.halfN; b++) {
+          const mag = Math.hypot(real[b], imag[b]) / (this.N / 2);
+          magnitudes[b] = mag;
+          totalPower += mag * mag;
+          if (mag > this.peakHold[b]) this.peakHold[b] = mag;
+          else this.peakHold[b] *= 0.985;
+          if (mag > maxMag) { maxMag = mag; maxBin = b; }
+        }
+
+        let cumPower = 0, mdfBin = 1;
+        const halfPower = totalPower * 0.5;
+        for (let b = 1; b < this.halfN; b++) {
+          cumPower += magnitudes[b] * magnitudes[b];
+          if (cumPower >= halfPower) { mdfBin = b; break; }
+        }
+
+        const binHz = this.fs / this.N;
+        const medianFreq = +(mdfBin * binHz).toFixed(1);
+        this.mdfHistory.push(medianFreq);
+        if (this.mdfHistory.length > 60) this.mdfHistory.shift();
+
+        return {
+          magnitudes,
+          peakHold: this.peakHold,
+          dominantFreq: (maxBin * binHz).toFixed(1),
+          medianFreq: medianFreq.toFixed(1),
+          medianFreqNum: medianFreq,
+          mdfHistory: this.mdfHistory,
+        };
+      }
+
+      analyzeChronological(chronoBuf) {
+        const len = chronoBuf.length;
+        let min = 255, max = 0, railHits = 0;
+        for (let i = 0; i < len; i++) {
+          const v = chronoBuf[i];
+          if (v < min) min = v;
+          if (v > max) max = v;
+          if (v <= 3 || v >= 252) railHits++;
+        }
+
+        const vpp = (((max - min) / 255) * 3.3).toFixed(2);
+        const isLeadOff = railHits > len * 0.25 || (max - min) < 6;
+
+        const threshold = min + (max - min) * 0.72;
+        const peaks = [];
+        const refractory = Math.floor(this.fs * 0.28);
+        if (!isLeadOff) {
+          for (let i = 1; i < len - 1; i++) {
+            if (chronoBuf[i] > threshold && chronoBuf[i] >= chronoBuf[i - 1] && chronoBuf[i] > chronoBuf[i + 1]) {
+              if (peaks.length === 0 || i - peaks[peaks.length - 1] > refractory) peaks.push(i);
+            }
+          }
+        }
+
+        const rrMs = [];
+        for (let i = 1; i < peaks.length; i++) rrMs.push(((peaks[i] - peaks[i - 1]) / this.fs) * 1000);
+        if (rrMs.length > 0) this.rrHistoryMs = rrMs.slice(-24);
+
+        let bpm = '--', bpmNum = 0, avgRrMs = '--', rrStdDev = 0, qtcMs = '--';
+        if (rrMs.length > 0) {
+          const avgRr = rrMs.reduce((a, b) => a + b, 0) / rrMs.length;
+          avgRrMs = Math.round(avgRr);
+          bpmNum = Math.round(60000 / avgRr);
+          if (bpmNum >= 30 && bpmNum <= 230) {
+            bpm = bpmNum;
+            const rrSec = avgRr / 1000;
+            const estQt = 365 * Math.pow(rrSec, 0.35);
+            qtcMs = Math.round(estQt / Math.sqrt(rrSec));
+          }
+          if (rrMs.length > 1) {
+            const variance = rrMs.reduce((acc, val) => acc + Math.pow(val - avgRr, 2), 0) / rrMs.length;
+            rrStdDev = Math.round(Math.sqrt(variance));
+          }
+        }
+
+        let liveBeat = new Float32Array(48).fill(0.25);
+        let correlationPct = 0;
+        let stDeviationMv = 0.02;
+
+        for (let p = peaks.length - 1; p >= 0; p--) {
+          const idx = peaks[p];
+          if (idx >= 21 && idx + 27 < len) {
+            let bMin = 255, bMax = 0;
+            for (let k = 0; k < 48; k++) {
+              const val = chronoBuf[idx - 21 + k];
+              if (val < bMin) bMin = val;
+              if (val > bMax) bMax = val;
+            }
+            const span = Math.max(1, bMax - bMin);
+            for (let k = 0; k < 48; k++) liveBeat[k] = (chronoBuf[idx - 21 + k] - bMin) / span;
+            correlationPct = this.pearsonCorrelation(liveBeat, this.mitBihTemplate);
+
+            const prBaseline = chronoBuf[idx - 10];
+            const stPoint = chronoBuf[idx + 12];
+            stDeviationMv = +(((stPoint - prBaseline) / 100) * 1.0).toFixed(2);
+            break;
+          }
+        }
+
+        return {
+          vpp, bpm, bpmNum, avgRrMs, rrStdDev, qtcMs, stDeviationMv,
+          isLeadOff, liveBeat, mitBihTemplate: this.mitBihTemplate,
+          correlationPct, rrHistoryMs: this.rrHistoryMs
+        };
+      }
+
+      pearsonCorrelation(a, b) {
+        const n = a.length;
+        let sumA = 0, sumB = 0, sumAB = 0, sumA2 = 0, sumB2 = 0;
+        for (let i = 0; i < n; i++) {
+          sumA += a[i]; sumB += b[i]; sumAB += a[i] * b[i];
+          sumA2 += a[i] * a[i]; sumB2 += b[i] * b[i];
+        }
+        const num = n * sumAB - sumA * sumB;
+        const den = Math.sqrt((n * sumA2 - sumA * sumA) * (n * sumB2 - sumB * sumB));
+        return den === 0 ? 0 : Math.max(0, Math.min(100, Math.round((num / den) * 100)));
+      }
+
+      classifyEdgeAI(timeMetrics, specMetrics, mode, hwAlertCode, profile, preset) {
+        const t0 = performance.now();
+        let sNormal = 0.75, sArr = 0.08, sFatigue = 0.08, sNoise = 0.05;
+        let uncertain = false;
+        let guardrailMsg = 'Guardrail Status: HIGH CONFIDENCE — Signal quality verified for classification.';
+
+        if (timeMetrics.isLeadOff) {
+          sNoise = 0.95; sNormal = 0.02; sArr = 0.02; sFatigue = 0.01;
+          uncertain = true;
+          guardrailMsg = 'Guardrail Abstention: Electrode lead-off or saturation detected — classification withheld.';
+        } else if (preset === 'manual' && timeMetrics.bpmNum === 0) {
+          sNoise = 0.70; sNormal = 0.15; sArr = 0.10; sFatigue = 0.05;
+          uncertain = true;
+          guardrailMsg = 'Guardrail Notice: Low beat count in Manual mode — inject beats for higher confidence.';
+        } else if (mode === 'ECG') {
+          const rateAbnormal = timeMetrics.bpmNum > profile.hrHigh || (timeMetrics.bpmNum > 0 && timeMetrics.bpmNum < profile.hrLow);
+          const irregular = timeMetrics.rrStdDev > 95 || (timeMetrics.correlationPct > 0 && timeMetrics.correlationPct < 68);
+          const stAbnormal = Math.abs(timeMetrics.stDeviationMv) >= profile.stLimit;
+          if (hwAlertCode === 1 || rateAbnormal || irregular || stAbnormal) {
+            sArr = 0.90; sNormal = 0.06; sFatigue = 0.02; sNoise = 0.02;
+          } else {
+            sNormal = 0.93; sArr = 0.03; sFatigue = 0.02; sNoise = 0.02;
+          }
+        } else if (mode === 'sEMG') {
+          if (hwAlertCode === 2 || (specMetrics.medianFreqNum > 5 && specMetrics.medianFreqNum < 52)) {
+            sFatigue = 0.89; sNormal = 0.07; sArr = 0.02; sNoise = 0.02;
+          } else {
+            sNormal = 0.91; sFatigue = 0.05; sArr = 0.02; sNoise = 0.02;
+          }
+        }
+
+        const total = sNormal + sArr + sFatigue + sNoise;
+        return {
+          normal: Math.round((sNormal / total) * 100),
+          arrhythmia: Math.round((sArr / total) * 100),
+          fatigue: Math.round((sFatigue / total) * 100),
+          noise: Math.round((sNoise / total) * 100),
+          uncertain,
+          guardrailMsg,
+          inferMs: Math.max(0.1, performance.now() - t0).toFixed(1),
+        };
+      }
+    }
+
+    class HospitalSignalEngine {
+      constructor(onSample, onStatusChange) {
+        this.onSample = onSample;
+        this.onStatusChange = onStatusChange;
+        this.activeType = 'SIM';
+        this.preset = 'normal';
+        this.humLevel = 0.05;
+        this.driftLevel = 0.05;
+        this.leadOff = false;
+
+        this.sampleCounter = 0;
+        this.manualBeatQueue = [];
+        this.serialPort = null;
+        this.serialReader = null;
+        this.bleDevice = null;
+        this.csvSamples = [];
+        this.csvCursor = 0;
+
+        this.startInternalClock();
+      }
+
+      generateReferenceSnippet(type, len = 300) {
+        const arr = new Uint8Array(len);
+        for (let n = 0; n < len; n++) {
+          const tSec = n / 250;
+          let clean = 128;
+          if (type === 'ECG') {
+            const phase = n % 200;
+            if (phase >= 16 && phase <= 28) clean = 128 + Math.sin(((phase - 16) / 12) * Math.PI) * 16;
+            else if (phase === 38) clean = 106;
+            else if (phase === 40) clean = 236;
+            else if (phase === 42) clean = 82;
+            else if (phase >= 62 && phase <= 84) clean = 128 + Math.sin(((phase - 62) / 22) * Math.PI) * 26;
+          } else if (type === 'sEMG') {
+            const phase = n % 220;
+            if (phase < 150) {
+              const env = Math.sin((phase / 150) * Math.PI);
+              clean = 128 + env * (46 * Math.sin(2 * Math.PI * 85 * tSec) + 28 * Math.cos(2 * Math.PI * 55 * tSec));
+            }
+          } else {
+            clean = 128 + 30 * Math.sin(2 * Math.PI * 10 * tSec) + 12 * Math.sin(2 * Math.PI * 20 * tSec);
+          }
+          arr[n] = Math.max(0, Math.min(255, Math.round(clean)));
+        }
+        return arr;
+      }
+
+      triggerManualHeartbeat(isPvc = false) {
+        const beat = [];
+        for (let i = 0; i < 95; i++) {
+          let v = 128;
+          if (isPvc) {
+            if (i >= 8 && i <= 26) v = 128 - Math.sin(((i - 8) / 18) * Math.PI) * 98;
+            else if (i > 26 && i <= 52) v = 128 + Math.sin(((i - 26) / 26) * Math.PI) * 48;
+          } else {
+            if (i >= 8 && i <= 20) v = 128 + Math.sin(((i - 8) / 12) * Math.PI) * 16;
+            else if (i === 30) v = 105;
+            else if (i === 32) v = 238;
+            else if (i === 34) v = 80;
+            else if (i >= 54 && i <= 78) v = 128 + Math.sin(((i - 54) / 24) * Math.PI) * 26;
+          }
+          beat.push(v);
+        }
+        this.manualBeatQueue.push(...beat);
+      }
+
+      startInternalClock() {
+        setInterval(() => {
+          if (this.activeType === 'USB' || this.activeType === 'BLE') return;
+
+          for (let step = 0; step < 4; step++) {
+            const n = this.sampleCounter++;
+            const tSec = n / 250;
+
+            if (this.activeType === 'CSV' && this.csvSamples.length > 0) {
+              const val = this.csvSamples[this.csvCursor % this.csvSamples.length];
+              this.csvCursor++;
+              this.onSample(val, 0);
+              continue;
+            }
+
+            if (this.leadOff) {
+              this.onSample(Math.random() > 0.5 ? 255 : 0, 0);
+              continue;
+            }
+
+            let clean = 128;
+            let hwStatus = 0;
+
+            if (this.manualBeatQueue.length > 0) {
+              clean = this.manualBeatQueue.shift();
+              if (this.preset === 'pvc') hwStatus = 1;
+            } else if (this.preset === 'manual') {
+              clean = 128;
+            } else if (['normal', 'tachy', 'brady', 'pvc', 'st_elev'].includes(this.preset)) {
+              const period = this.preset === 'tachy' ? 101 : this.preset === 'brady' ? 333 : 200;
+              const beatNum = Math.floor(n / period);
+              const phase = n % period;
+
+              if (this.preset === 'pvc' && (beatNum % 3 === 2)) {
+                if (phase >= 10 && phase <= 26) clean = 128 - Math.sin(((phase - 10) / 16) * Math.PI) * 96;
+                else if (phase > 26 && phase <= 48) clean = 128 + Math.sin(((phase - 26) / 22) * Math.PI) * 46;
+              } else {
+                if (phase >= 16 && phase <= 28) clean = 128 + Math.sin(((phase - 16) / 12) * Math.PI) * 16;
+                else if (phase === 38) clean = 106;
+                else if (phase === 40) clean = 236;
+                else if (phase === 42) clean = this.preset === 'st_elev' ? 156 : 82;
+                else if (this.preset === 'st_elev' && phase > 42 && phase < 62) clean = 158;
+                else if (phase >= 62 && phase <= 84) clean = 128 + Math.sin(((phase - 62) / 22) * Math.PI) * (this.preset === 'st_elev' ? 42 : 26);
+              }
+              if (['tachy', 'brady', 'pvc', 'st_elev'].includes(this.preset)) hwStatus = 1;
+            } else if (this.preset === 'fatigue') {
+              const burstPeriod = 220;
+              const phase = n % burstPeriod;
+              const burstIdx = Math.floor(n / burstPeriod);
+              if (phase < 150) {
+                const fatigueScale = Math.max(0.4, 1 - (burstIdx % 5) * 0.15);
+                const env = Math.sin((phase / 150) * Math.PI);
+                clean = 128 + env * (50 * Math.sin(2 * Math.PI * 88 * fatigueScale * tSec) + 32 * Math.cos(2 * Math.PI * 52 * fatigueScale * tSec));
+              }
+              if ((burstIdx % 5) >= 3) hwStatus = 2;
+            } else if (this.preset === 'eeg') {
+              clean = 128 + 32 * Math.sin(2 * Math.PI * 10 * tSec) + 14 * Math.sin(2 * Math.PI * 22 * tSec);
+            }
+
+            const hum50Hz = this.humLevel * 36 * Math.sin(2 * Math.PI * 50 * tSec);
+            const drift = this.driftLevel * 28 * Math.sin(2 * Math.PI * 0.25 * tSec);
+            const noisy = Math.max(0, Math.min(255, Math.round(clean + hum50Hz + drift + (Math.random() - 0.5) * 2)));
+            this.onSample(noisy, hwStatus);
+          }
+        }, 16);
+      }
+
+      async connectUSB() {
+        if (!('serial' in navigator)) throw new Error('Web Serial requires Chrome or Edge on desktop.');
+        await this.disconnectHardware();
+        this.serialPort = await navigator.serial.requestPort();
+        await this.serialPort.open({ baudRate: 115200 });
+        this.activeType = 'USB';
+        this.onStatusChange('connected', 'USB 115200');
+        this.readSerialLoop();
+      }
+
+      async readSerialLoop() {
+        const rxBuffer = [];
+        this.serialReader = this.serialPort.readable.getReader();
+        try {
+          while (this.activeType === 'USB') {
+            const { value, done } = await this.serialReader.read();
+            if (done) break;
+            if (value) {
+              for (let i = 0; i < value.length; i++) rxBuffer.push(value[i]);
+              while (rxBuffer.length >= 66) {
+                if (rxBuffer[0] !== 0xAA) { rxBuffer.shift(); continue; }
+                const frame = rxBuffer.splice(0, 66);
+                const statusByte = frame[65];
+                for (let s = 1; s <= 64; s++) this.onSample(frame[s], statusByte);
+              }
+            }
+          }
+        } catch (_) {
+          this.activeType = 'SIM';
+          this.onStatusChange('demo', 'Monitor Active');
+        } finally {
+          if (this.serialReader) this.serialReader.releaseLock();
+        }
+      }
+
+      async connectBLE() {
+        if (!navigator.bluetooth) throw new Error('Web Bluetooth requires Chrome or Edge.');
+        await this.disconnectHardware();
+        this.bleDevice = await navigator.bluetooth.requestDevice({ filters: [{ services: [SERVICE_UUID] }] });
+        this.bleDevice.addEventListener('gattserverdisconnected', () => {
+          this.activeType = 'SIM';
+          this.onStatusChange('demo', 'Monitor Active');
+        });
+        const server = await this.bleDevice.gatt.connect();
+        const service = await server.getPrimaryService(SERVICE_UUID);
+        const char = await service.getCharacteristic(CHARACTERISTIC_UUID);
+        await char.startNotifications();
+        char.addEventListener('characteristicvaluechanged', (e) => {
+          const view = e.target.value;
+          if (view.byteLength >= 65) {
+            const statusByte = view.getUint8(64);
+            for (let i = 0; i < 64; i++) this.onSample(view.getUint8(i), statusByte);
+          }
+        });
+        this.activeType = 'BLE';
+        this.onStatusChange('connected', 'BLE Connected');
+      }
+
+      async disconnectHardware() {
+        if (this.serialReader) { try { await this.serialReader.cancel(); } catch (_) {} this.serialReader = null; }
+        if (this.serialPort) { try { await this.serialPort.close(); } catch (_) {} this.serialPort = null; }
+        if (this.bleDevice && this.bleDevice.gatt.connected) { this.bleDevice.gatt.disconnect(); this.bleDevice = null; }
+        this.activeType = 'SIM';
+        this.onStatusChange('demo', 'Monitor Active');
+      }
+    }
+
+    class BioRenderer {
+      constructor(scopeCanvas, morphCanvas, poincareCanvas, fftCanvas, waterfallCanvas) {
+        this.scopeCanvas = scopeCanvas;
+        this.morphCanvas = morphCanvas;
+        this.poincareCanvas = poincareCanvas;
+        this.fftCanvas = fftCanvas;
+        this.waterfallCanvas = waterfallCanvas;
+        this.scopeCtx = scopeCanvas.getContext('2d');
+        this.morphCtx = morphCanvas.getContext('2d');
+        this.poinCtx = poincareCanvas.getContext('2d');
+        this.fftCtx = fftCanvas.getContext('2d');
+        this.wfCtx = waterfallCanvas.getContext('2d');
+        this.wfHistory = [];
+        this.maxWfCols = 160;
+        this.calipers = [];
+      }
+
+      resizeCanvas(canvas, ctx) {
+        const dpr = window.devicePixelRatio || 1;
+        const rect = canvas.getBoundingClientRect();
+        if (rect.width === 0 || rect.height === 0) return { w: 360, h: 160 };
+        if (canvas.width !== Math.round(rect.width * dpr) || canvas.height !== Math.round(rect.height * dpr)) {
+          canvas.width = Math.round(rect.width * dpr);
+          canvas.height = Math.round(rect.height * dpr);
+        }
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        return { w: rect.width, h: rect.height };
+      }
+
+      pushSpectrumColumn(magnitudes) {
+        this.wfHistory.push(Float32Array.from(magnitudes));
+        if (this.wfHistory.length > this.maxWfCols) this.wfHistory.shift();
+      }
+
+      clearWaterfall() { this.wfHistory = []; }
+
+      drawHospitalSweep(sweepFiltered, sweepRaw, writeCursor, showRaw, gain, isAlert, mode) {
+        const { w, h } = this.resizeCanvas(this.scopeCanvas, this.scopeCtx);
+        const ctx = this.scopeCtx;
+
+        ctx.fillStyle = '#06090f';
+        ctx.fillRect(0, 0, w, h);
+
+        ctx.lineWidth = 1;
+        for (let x = 0; x <= w; x += 25) {
+          ctx.strokeStyle = x % 125 === 0 ? 'rgba(51, 65, 85, 0.45)' : 'rgba(30, 41, 59, 0.35)';
+          ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
+        }
+        for (let y = 0; y <= h; y += 25) {
+          ctx.strokeStyle = y % 125 === 0 ? 'rgba(51, 65, 85, 0.45)' : 'rgba(30, 41, 59, 0.35)';
+          ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+        }
+
+        const midY = h / 2;
+        ctx.strokeStyle = '#22c55e';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(6, midY); ctx.lineTo(12, midY);
+        ctx.lineTo(12, midY - 28 * gain); ctx.lineTo(22, midY - 28 * gain);
+        ctx.lineTo(22, midY); ctx.lineTo(28, midY);
+        ctx.stroke();
+
+        const len = sweepFiltered.length;
+        const eraseGap = Math.max(12, Math.floor(len * 0.036));
+        const startX = 34;
+        const traceW = w - startX - 8;
+        const isGap = (idx) => {
+          const dist = (idx - writeCursor + len) % len;
+          return dist > 0 && dist < eraseGap;
+        };
+
+        if (showRaw) {
+          ctx.strokeStyle = 'rgba(148, 163, 184, 0.45)';
+          ctx.lineWidth = 1.2;
+          ctx.beginPath();
+          let penDown = false;
+          for (let i = 0; i < len; i++) {
+            if (isGap(i)) { penDown = false; continue; }
+            const x = startX + (i / (len - 1)) * traceW;
+            const clamped = Math.max(-128, Math.min(127, (sweepRaw[i] - 128) * gain));
+            const y = midY - (clamped / 128) * (h * 0.43);
+            if (!penDown) { ctx.moveTo(x, y); penDown = true; }
+            else ctx.lineTo(x, y);
+          }
+          ctx.stroke();
+        }
+
+        const traceColor = isAlert ? '#ef4444' : mode === 'sEMG' ? '#38bdf8' : mode === 'EEG' ? '#fbbf24' : '#22c55e';
+        ctx.save();
+        ctx.strokeStyle = traceColor;
+        ctx.shadowColor = traceColor;
+        ctx.shadowBlur = 8;
+        ctx.lineWidth = 2.4;
+        ctx.lineJoin = 'round';
+        ctx.beginPath();
+
+        let penDown = false;
+        let headX = startX, headY = midY;
+        for (let i = 0; i < len; i++) {
+          if (isGap(i)) { penDown = false; continue; }
+          const x = startX + (i / (len - 1)) * traceW;
+          const clamped = Math.max(-128, Math.min(127, (sweepFiltered[i] - 128) * gain));
+          const y = midY - (clamped / 128) * (h * 0.43);
+          if (!penDown) { ctx.moveTo(x, y); penDown = true; }
+          else ctx.lineTo(x, y);
+          if (i === writeCursor) { headX = x; headY = y; }
+        }
+        ctx.stroke();
+
+        ctx.fillStyle = '#ffffff';
+        ctx.shadowColor = traceColor;
+        ctx.shadowBlur = 14;
+        ctx.beginPath();
+        ctx.arc(headX, headY, 3.8, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+
+        if (this.calipers.length > 0) {
+          this.calipers.forEach((pt, idx) => {
+            const cx = pt.xNorm * w, cy = pt.yNorm * h;
+            ctx.strokeStyle = '#38bdf8';
+            ctx.lineWidth = 1.5;
+            ctx.setLineDash([3, 3]);
+            ctx.beginPath(); ctx.moveTo(cx, 0); ctx.lineTo(cx, h); ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.fillStyle = '#38bdf8';
+            ctx.beginPath(); ctx.arc(cx, cy, 4, 0, Math.PI * 2); ctx.fill();
+            ctx.fillText(`C${idx + 1}`, cx + 6, cy - 6);
+          });
+          if (this.calipers.length === 2) {
+            const x1 = this.calipers[0].xNorm * w, y1 = this.calipers[0].yNorm * h;
+            const x2 = this.calipers[1].xNorm * w, y2 = this.calipers[1].yNorm * h;
+            ctx.strokeStyle = '#38bdf8';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y1); ctx.lineTo(x2, y2); ctx.stroke();
+          }
+        }
+      }
+
+      drawPoincarePlot(rrList, isAlert) {
+        const { w, h } = this.resizeCanvas(this.poincareCanvas, this.poinCtx);
+        const ctx = this.poinCtx;
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, w, h);
+
+        const pad = 24;
+        const plotW = w - pad * 2;
+        const plotH = h - pad * 2;
+
+        ctx.strokeStyle = '#f1f5f9';
+        ctx.lineWidth = 1;
+        for (let i = 0; i <= 4; i++) {
+          const gx = pad + (i / 4) * plotW;
+          const gy = pad + (i / 4) * plotH;
+          ctx.beginPath(); ctx.moveTo(gx, pad); ctx.lineTo(gx, h - pad); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(pad, gy); ctx.lineTo(w - pad, gy); ctx.stroke();
+        }
+
+        ctx.strokeStyle = '#cbd5e1';
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath();
+        ctx.moveTo(pad, h - pad);
+        ctx.lineTo(w - pad, pad);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        const normX = pad + ((800 - 300) / 1100) * plotW;
+        const normY = h - pad - ((800 - 300) / 1100) * plotH;
+        ctx.strokeStyle = 'rgba(13, 148, 136, 0.35)';
+        ctx.fillStyle = 'rgba(13, 148, 136, 0.08)';
+        ctx.beginPath();
+        ctx.ellipse(normX, normY, 16, 10, -Math.PI / 4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+
+        for (let i = 0; i < rrList.length - 1; i++) {
+          const rr1 = Math.max(300, Math.min(1400, rrList[i]));
+          const rr2 = Math.max(300, Math.min(1400, rrList[i + 1]));
+          const x = pad + ((rr1 - 300) / 1100) * plotW;
+          const y = h - pad - ((rr2 - 300) / 1100) * plotH;
+
+          ctx.fillStyle = isAlert ? '#dc2626' : '#0d9488';
+          ctx.beginPath();
+          ctx.arc(x, y, 4.2, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        ctx.fillStyle = '#64748b';
+        ctx.font = '10px sans-serif';
+        ctx.fillText('RRₙ (300–1400 ms) →', pad, h - 6);
+        ctx.fillText('RRₙ₊₁', 4, pad + 6);
+      }
+
+      drawReportComparison(canvasEl, testedBuf, normalRefBuf, isAlert) {
+        const ctx = canvasEl.getContext('2d');
+        const { w, h } = this.resizeCanvas(canvasEl, ctx);
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, w, h);
+
+        ctx.strokeStyle = '#f1f5f9';
+        ctx.lineWidth = 1;
+        for (let x = 0; x <= w; x += 20) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke(); }
+        for (let y = 0; y <= h; y += 20) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke(); }
+
+        const midY = h / 2 + 6;
+        const len = Math.min(testedBuf.length, normalRefBuf.length);
+
+        ctx.strokeStyle = '#3b82f6';
+        ctx.lineWidth = 1.6;
+        ctx.setLineDash([4, 3]);
+        ctx.beginPath();
+        for (let i = 0; i < len; i++) {
+          const x = (i / (len - 1)) * w;
+          const y = midY - ((normalRefBuf[i] - 128) / 128) * (h * 0.38);
+          if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        const testedColor = isAlert ? '#dc2626' : '#0d9488';
+        ctx.strokeStyle = testedColor;
+        ctx.lineWidth = 2.0;
+        ctx.beginPath();
+        for (let i = 0; i < len; i++) {
+          const x = (i / (len - 1)) * w;
+          const y = midY - ((testedBuf[i] - 128) / 128) * (h * 0.38);
+          if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.92)';
+        ctx.fillRect(6, 4, 215, 16);
+        ctx.font = 'bold 9.5px sans-serif';
+
+        ctx.strokeStyle = '#3b82f6';
+        ctx.lineWidth = 1.6;
+        ctx.setLineDash([3, 2]);
+        ctx.beginPath(); ctx.moveTo(10, 12); ctx.lineTo(24, 12); ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = '#1e3a8a';
+        ctx.fillText('Normal Ref', 28, 15);
+
+        ctx.strokeStyle = testedColor;
+        ctx.lineWidth = 2.0;
+        ctx.beginPath(); ctx.moveTo(92, 12); ctx.lineTo(106, 12); ctx.stroke();
+        ctx.fillStyle = isAlert ? '#991b1b' : '#115e59';
+        ctx.fillText(isAlert ? 'Tested (Anomaly)' : 'Tested (Normal)', 110, 15);
+      }
+
+      drawMorphologyOrFatigue(mode, timeMetrics, specMetrics) {
+        const { w, h } = this.resizeCanvas(this.morphCanvas, this.morphCtx);
+        const ctx = this.morphCtx;
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, w, h);
+
+        ctx.strokeStyle = '#f1f5f9';
+        ctx.lineWidth = 1;
+        for (let x = 0; x <= w; x += 24) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke(); }
+        for (let y = 0; y <= h; y += 24) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke(); }
+
+        if (mode === 'sEMG') {
+          const hist = specMetrics.mdfHistory;
+          if (hist.length < 2) return;
+          ctx.strokeStyle = '#d97706';
+          ctx.lineWidth = 2.2;
+          ctx.beginPath();
+          hist.forEach((mdf, idx) => {
+            const x = 16 + (idx / Math.max(1, hist.length - 1)) * (w - 32);
+            const y = h - 22 - Math.min(1, Math.max(0, mdf / 110)) * (h - 38);
+            if (idx === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+          });
+          ctx.stroke();
+
+          const threshY = h - 22 - (52 / 110) * (h - 38);
+          ctx.strokeStyle = '#dc2626';
+          ctx.setLineDash([4, 4]);
+          ctx.beginPath(); ctx.moveTo(16, threshY); ctx.lineTo(w - 16, threshY); ctx.stroke();
+          ctx.setLineDash([]);
+          ctx.fillStyle = '#64748b';
+          ctx.font = '10px sans-serif';
+          ctx.fillText('52 Hz Fatigue Threshold', 8, threshY - 4);
+          return;
+        }
+
+        const ref = timeMetrics.mitBihTemplate;
+        const live = timeMetrics.liveBeat;
+        ctx.strokeStyle = '#3b82f6';
+        ctx.lineWidth = 1.8;
+        ctx.setLineDash([5, 4]);
+        ctx.beginPath();
+        ref.forEach((v, i) => {
+          const x = 16 + (i / (ref.length - 1)) * (w - 32);
+          const y = h - 22 - v * (h - 38);
+          if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        ctx.strokeStyle = '#0d9488';
+        ctx.lineWidth = 2.4;
+        ctx.beginPath();
+        live.forEach((v, i) => {
+          const x = 16 + (i / (live.length - 1)) * (w - 32);
+          const y = h - 22 - v * (h - 38);
+          if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+
+        ctx.fillStyle = '#64748b';
+        ctx.font = '10px sans-serif';
+        ctx.fillText('Dashed: MIT-BIH Ref | Solid: Live Beat', 12, h - 6);
+      }
+
+      drawFFT(magnitudes, peakHold) {
+        const { w, h } = this.resizeCanvas(this.fftCanvas, this.fftCtx);
+        const ctx = this.fftCtx;
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, w, h);
+
+        ctx.strokeStyle = '#f1f5f9';
+        ctx.lineWidth = 1;
+        for (let y = 0; y <= h; y += 25) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke(); }
+
+        const bins = magnitudes.length - 1;
+        const barW = (w - 24) / bins;
+        for (let b = 1; b <= bins; b++) {
+          const x = 12 + (b - 1) * barW;
+          const barH = Math.min(1, magnitudes[b] / 42) * (h - 28);
+          ctx.fillStyle = '#0d9488';
+          ctx.fillRect(x + 1, h - 18 - barH, Math.max(2, barW - 3), barH);
+
+          const peakY = h - 18 - Math.min(1, peakHold[b] / 42) * (h - 28);
+          ctx.fillStyle = '#f59e0b';
+          ctx.fillRect(x + 1, peakY - 2, Math.max(2, barW - 3), 2);
+        }
+
+        ctx.fillStyle = '#64748b';
+        ctx.font = '10px sans-serif';
+        ctx.fillText('0 Hz', 12, h - 4);
+        ctx.fillText('30 Hz', w * 0.25, h - 4);
+        ctx.fillText('50 Hz (Notch)', w * 0.4, h - 4);
+        ctx.fillText('90 Hz', w * 0.75, h - 4);
+        ctx.fillText('125 Hz', w - 38, h - 4);
+      }
+
+      drawWaterfall() {
+        const { w, h } = this.resizeCanvas(this.waterfallCanvas, this.wfCtx);
+        const ctx = this.wfCtx;
+        ctx.fillStyle = '#f8fafc';
+        ctx.fillRect(0, 0, w, h);
+        if (this.wfHistory.length === 0) return;
+
+        const colW = w / this.maxWfCols;
+        const bins = 31;
+        const rowH = (h - 18) / bins;
+        for (let c = 0; c < this.wfHistory.length; c++) {
+          const col = this.wfHistory[c];
+          const x = c * colW;
+          for (let b = 1; b <= bins; b++) {
+            const intensity = Math.min(1, col[b] / 38);
+            const y = h - 18 - b * rowH;
+            if (intensity < 0.15) ctx.fillStyle = '#f1f5f9';
+            else if (intensity < 0.4) ctx.fillStyle = '#99f6e4';
+            else if (intensity < 0.7) ctx.fillStyle = '#0d9488';
+            else if (intensity < 0.9) ctx.fillStyle = '#f59e0b';
+            else ctx.fillStyle = '#dc2626';
+            ctx.fillRect(x, y, Math.ceil(colW), Math.ceil(rowH));
+          }
+        }
+        ctx.fillStyle = '#64748b';
+        ctx.font = '10px sans-serif';
+        ctx.fillText('Older ← Time → Live', 8, h - 4);
+        ctx.fillText('Top: 125 Hz | Bottom: 0 Hz', w - 135, h - 4);
+      }
+    }
+
+    const dsp = new BioDSP(250, 64);
+    const scopeCanvas = document.getElementById('scopeCanvas');
+    const renderer = new BioRenderer(
+      scopeCanvas,
+      document.getElementById('morphCanvas'),
+      document.getElementById('poincareCanvas'),
+      document.getElementById('fftCanvas'),
+      document.getElementById('waterfallCanvas')
+    );
+
+    let sweepFiltered = new Uint8Array(SWEEP_LEN).fill(128);
+    let sweepRaw = new Uint8Array(SWEEP_LEN).fill(128);
+    let writeCursor = 0;
+
+    let chronoBuffer = new Array(512).fill(128);
+    let fftChunk = [];
+    let latestSpectrum = { magnitudes: new Float32Array(32), peakHold: new Float32Array(32), dominantFreq: '3.9', medianFreq: '15.6', medianFreqNum: 15.6, mdfHistory: [] };
+    let latestTimeMetrics = { vpp: '1.98', bpm: '75', bpmNum: 75, avgRrMs: 800, rrStdDev: 0, qtcMs: 412, stDeviationMv: 0.02, isLeadOff: false, liveBeat: new Float32Array(48).fill(0.25), mitBihTemplate: dsp.mitBihTemplate, correlationPct: 96, rrHistoryMs: [800, 804, 796, 800] };
+
+    const capturedModalities = { ECG: null, sEMG: null, EEG: null };
+
+    let activeProfile = CARE_PROFILES.ICU;
+    let currentMode = 'ECG';
+    let currentGain = 1.0;
+    let currentAlert = 0;
+    let sustainedAlarmCounter = 0;
+    let lastStripCaptureTime = 0;
+    let isPaused = false;
+    let audioEnabled = false;
+    let audioCtx = null;
+    let lastBeepTime = 0;
+    let samplesThisSec = 0;
+    let framesThisSec = 0;
+    let recordedRows = [];
+
+    function triggerHeartFlashAndBeep(isAlarm = false) {
+      const icon = document.getElementById('heartIcon');
+      const svgHeart = document.getElementById('avatarHeart');
+      icon.classList.add('beat');
+      svgHeart.classList.add('pulse');
+      setTimeout(() => {
+        icon.classList.remove('beat');
+        svgHeart.classList.remove('pulse');
+      }, 140);
+
+      if (!audioEnabled) return;
+      try {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = isAlarm ? 520 : 880;
+        gain.gain.setValueAtTime(0.09, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.06);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.06);
+      } catch (_) {}
+    }
+
+    function updatePatientAvatar(isAlarm) {
+      const heart = document.getElementById('avatarHeart');
+      const muscle = document.getElementById('avatarMuscle');
+      const brain = document.getElementById('avatarBrain');
+      const leadX = document.getElementById('avatarLeadOffX');
+
+      if (latestTimeMetrics.isLeadOff) {
+        leadX.style.display = 'block';
+        heart.setAttribute('fill', '#64748b');
+        document.getElementById('avLeadState').textContent = 'LEAD-OFF';
+        document.getElementById('avLeadState').style.color = '#ef4444';
+        return;
+      }
+
+      leadX.style.display = 'none';
+      document.getElementById('avLeadState').textContent = 'Leads OK';
+      document.getElementById('avLeadState').style.color = '#22c55e';
+
+      if (currentMode === 'ECG') {
+        heart.setAttribute('fill', isAlarm ? '#ef4444' : '#22c55e');
+        document.getElementById('avHeartState').textContent = isAlarm ? 'Alarm' : 'Sinus';
+        document.getElementById('avHeartState').style.color = isAlarm ? '#ef4444' : '#22c55e';
+      }
+      if (currentMode === 'sEMG') {
+        const fatigued = isAlarm || (latestSpectrum.medianFreqNum > 5 && latestSpectrum.medianFreqNum < 52);
+        muscle.setAttribute('fill', fatigued ? '#f59e0b' : '#38bdf8');
+        document.getElementById('avEmgState').textContent = fatigued ? 'Fatigue' : 'Active';
+        document.getElementById('avEmgState').style.color = fatigued ? '#f59e0b' : '#38bdf8';
+      } else {
+        muscle.setAttribute('fill', '#334155');
+      }
+
+      if (currentMode === 'EEG') {
+        brain.setAttribute('fill', '#fbbf24');
+        document.getElementById('avEegState').textContent = 'Active';
+        document.getElementById('avEegState').style.color = '#fbbf24';
+      } else {
+        brain.setAttribute('fill', '#334155');
+      }
+    }
+
+    function captureDiagnosticRhythmStrip(titleText, snippetBuf) {
+      if (Date.now() - lastStripCaptureTime < 5000) return;
+      lastStripCaptureTime = Date.now();
+
+      const container = document.getElementById('alarmStripsContainer');
+      if (container.querySelector('.log-empty')) container.innerHTML = '';
+
+      const card = document.createElement('div');
+      card.className = 'strip-card';
+      const timeStr = new Date().toLocaleTimeString();
+      card.innerHTML = `
+        <div class="strip-card-head">
+          <span>${titleText}</span>
+          <span>${timeStr} | HR: ${latestTimeMetrics.bpm} BPM</span>
+        </div>
+        <canvas class="strip-canvas"></canvas>
+      `;
+      container.prepend(card);
+      if (container.children.length > 6) container.removeChild(container.lastChild);
+
+      const cvs = card.querySelector('canvas');
+      const ctx = cvs.getContext('2d');
+      cvs.width = 320;
+      cvs.height = 76;
+      ctx.fillStyle = '#fff5f5';
+      ctx.fillRect(0, 0, 320, 76);
+      ctx.strokeStyle = '#dc2626';
+      ctx.lineWidth = 1.8;
+      ctx.beginPath();
+      for (let i = 0; i < snippetBuf.length; i++) {
+        const x = (i / (snippetBuf.length - 1)) * 320;
+        const y = 38 - ((snippetBuf[i] - 128) / 128) * 32;
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    }
+
+    function handleIncomingSample(rawVal, hwStatusByte) {
+      samplesThisSec++;
+      currentAlert = hwStatusByte;
+
+      const enableNotch = document.getElementById('chkNotch').checked;
+      const enableBandpass = document.getElementById('chkBandpass').checked;
+      const filteredVal = dsp.filterSample(rawVal, enableNotch, enableBandpass, currentMode);
+
+      if (!isPaused) {
+        sweepRaw[writeCursor] = rawVal;
+        sweepFiltered[writeCursor] = filteredVal;
+        writeCursor = (writeCursor + 1) % SWEEP_LEN;
+
+        chronoBuffer.push(filteredVal);
+        if (chronoBuffer.length > 512) chronoBuffer.shift();
+        capturedModalities[currentMode] = chronoBuffer.slice(-300);
+
+        if (currentMode === 'ECG' && filteredVal > 205 && performance.now() - lastBeepTime > 260) {
+          lastBeepTime = performance.now();
+          triggerHeartFlashAndBeep(hwStatusByte > 0);
+        }
+
+        fftChunk.push(filteredVal);
+        if (fftChunk.length >= 64) {
+          latestSpectrum = dsp.computeSpectrum(fftChunk);
+          renderer.pushSpectrumColumn(latestSpectrum.magnitudes);
+          latestTimeMetrics = dsp.analyzeChronological(chronoBuffer);
+          fftChunk = [];
+
+          const rateBreach = currentMode === 'ECG' && (latestTimeMetrics.bpmNum > activeProfile.hrHigh || (latestTimeMetrics.bpmNum > 0 && latestTimeMetrics.bpmNum < activeProfile.hrLow));
+          const stBreach = currentMode === 'ECG' && Math.abs(latestTimeMetrics.stDeviationMv) >= activeProfile.stLimit;
+          const isConditionAlarm = hwStatusByte > 0 || rateBreach || stBreach || latestTimeMetrics.isLeadOff;
+
+          if (isConditionAlarm) sustainedAlarmCounter++;
+          else sustainedAlarmCounter = 0;
+
+          updateAlertBanner(hwStatusByte, isConditionAlarm);
+          updatePatientAvatar(isConditionAlarm);
+
+          if (sustainedAlarmCounter >= 3) {
+            const label = latestTimeMetrics.isLeadOff ? 'LEAD-OFF FAULT' :
+                          stBreach ? `ST-ELEVATION (${latestTimeMetrics.stDeviationMv}mV)` :
+                          hwStatusByte === 2 ? 'sEMG FATIGUE' : 'CARDIAC ANOMALY';
+            captureDiagnosticRhythmStrip(label, chronoBuffer.slice(-300));
+            appendAnomalyLog(label);
+          }
+        }
+      }
+
+      if (recordedRows.length < 15000) {
+        recordedRows.push(`${Date.now()},${currentMode},${rawVal},${filteredVal},${hwStatusByte}`);
+      }
+    }
+
+    const engine = new HospitalSignalEngine(handleIncomingSample, (state, label) => {
+      const pill = document.getElementById('connStatus');
+      pill.className = `status-pill ${state}`;
+      document.getElementById('connText').textContent = label;
+      document.getElementById('btnUsb').textContent = engine.activeType === 'USB' ? 'Disconnect USB' : 'Connect USB (115200)';
+      document.getElementById('btnBle').textContent = engine.activeType === 'BLE' ? 'Disconnect BLE' : 'Connect BLE';
+    });
+
+    // Offline Session Snapshot Vault Logic
+    function getSnapshots() {
+      try { return JSON.parse(localStorage.getItem(VAULT_STORAGE_KEY) || '[]'); }
+      catch (_) { return []; }
+    }
+
+    function saveSnapshots(list) {
+      localStorage.setItem(VAULT_STORAGE_KEY, JSON.stringify(list));
+    }
+
+    function refreshSnapshotDropdown(selectedId = null) {
+      const select = document.getElementById('snapshotSelect');
+      const list = getSnapshots();
+      select.innerHTML = '<option value="">-- Select Saved Snapshot --</option>';
+      list.forEach((snap) => {
+        const opt = document.createElement('option');
+        opt.value = snap.id;
+        opt.textContent = `${snap.name} (${snap.preset}, ${snap.bpmNum || 0} BPM)`;
+        if (selectedId && snap.id === selectedId) opt.selected = true;
+        select.appendChild(opt);
+      });
+      updateSnapshotComparison();
+    }
+
+    function updateSnapshotComparison() {
+      const selectId = document.getElementById('snapshotSelect').value;
+      const list = getSnapshots();
+      const snap = list.find((s) => s.id === selectId);
+
+      const liveBpm = latestTimeMetrics.bpmNum || 0;
+      const liveSt = latestTimeMetrics.stDeviationMv || 0;
+      const liveMdf = latestSpectrum.medianFreqNum || 0;
+      document.getElementById('liveCompareText').textContent =
+        `Mode: ${currentMode} | HR: ${liveBpm} BPM | ST: ${liveSt >= 0 ? '+' : ''}${liveSt.toFixed(2)} mV | MDF: ${liveMdf.toFixed(1)} Hz`;
+
+      if (!snap) {
+        document.getElementById('snapSummaryText').textContent = 'No snapshot selected. Save a snapshot to compare against live telemetry.';
+        document.getElementById('deltaCompareText').textContent = 'Select a saved snapshot to compute differences.';
+        return;
+      }
+
+      document.getElementById('snapSummaryText').textContent =
+        `${snap.name} • HR: ${snap.bpmNum} BPM | ST: ${snap.st >= 0 ? '+' : ''}${snap.st.toFixed(2)} mV | MDF: ${snap.mdf.toFixed(1)} Hz`;
+
+      const dBpm = liveBpm - snap.bpmNum;
+      const dSt = +(liveSt - snap.st).toFixed(2);
+      const dMdf = +(liveMdf - snap.mdf).toFixed(1);
+      document.getElementById('deltaCompareText').textContent =
+        `ΔHR: ${dBpm >= 0 ? '+' : ''}${dBpm} BPM | ΔST: ${dSt >= 0 ? '+' : ''}${dSt.toFixed(2)} mV | ΔMDF: ${dMdf >= 0 ? '+' : ''}${dMdf.toFixed(1)} Hz`;
+    }
+
+    document.getElementById('btnSaveSnapshot').addEventListener('click', () => {
+      const inputEl = document.getElementById('snapshotNameInput');
+      const name = (inputEl.value || '').trim() || `Session_${new Date().toLocaleTimeString()}`;
+      const list = getSnapshots();
+      const newSnap = {
+        id: String(Date.now()),
+        name,
+        preset: engine.preset,
+        bpmNum: latestTimeMetrics.bpmNum || 0,
+        st: latestTimeMetrics.stDeviationMv || 0,
+        mdf: latestSpectrum.medianFreqNum || 0,
+      };
+      list.unshift(newSnap);
+      saveSnapshots(list.slice(0, 12));
+      inputEl.value = '';
+      refreshSnapshotDropdown(newSnap.id);
+    });
+
+    document.getElementById('snapshotSelect').addEventListener('change', updateSnapshotComparison);
+
+    document.getElementById('btnDeleteSnapshot').addEventListener('click', () => {
+      const selectId = document.getElementById('snapshotSelect').value;
+      if (!selectId) return;
+      const updated = getSnapshots().filter((s) => s.id !== selectId);
+      saveSnapshots(updated);
+      refreshSnapshotDropdown();
+    });
+
+    refreshSnapshotDropdown();
+
+    function updateComprehensiveReport() {
+      const normEcg = engine.generateReferenceSnippet('ECG', 300);
+      const normEmg = engine.generateReferenceSnippet('sEMG', 300);
+      const normEeg = engine.generateReferenceSnippet('EEG', 300);
+
+      const testEcg = capturedModalities.ECG || normEcg;
+      const testEmg = capturedModalities.sEMG || normEmg;
+      const testEeg = capturedModalities.EEG || normEeg;
+
+      const ecgMetrics = dsp.analyzeChronological(testEcg);
+      const emgSpec = dsp.computeSpectrum(testEmg.slice(-64));
+      const eegSpec = dsp.computeSpectrum(testEeg.slice(-64));
+
+      const ecgAbnormal = currentAlert === 1 || ecgMetrics.bpmNum > activeProfile.hrHigh || (ecgMetrics.bpmNum > 0 && ecgMetrics.bpmNum < activeProfile.hrLow) || ecgMetrics.correlationPct < 70 || Math.abs(ecgMetrics.stDeviationMv) >= activeProfile.stLimit;
+      const emgFatigued = currentAlert === 2 || (emgSpec.medianFreqNum > 5 && emgSpec.medianFreqNum < 52);
+
+      renderer.drawReportComparison(document.getElementById('repEcgCanvas'), testEcg, normEcg, ecgAbnormal);
+      renderer.drawReportComparison(document.getElementById('repEmgCanvas'), testEmg, normEmg, emgFatigued);
+      renderer.drawReportComparison(document.getElementById('repEegCanvas'), testEeg, normEeg, false);
+
+      document.getElementById('reportTimestamp').textContent =
+        `Generated: ${new Date().toLocaleString()} | Care Profile: ${activeProfile.name} | Pipeline: AD8232 → Spartan-6 DSP → Edge-AI`;
+
+      let ecgFindings = '';
+      if (ecgMetrics.isLeadOff) {
+        ecgFindings = 'Electrode lead-off or signal saturation detected during ECG acquisition.';
+      } else if (Math.abs(ecgMetrics.stDeviationMv) >= activeProfile.stLimit) {
+        ecgFindings = `Significant ST-segment elevation detected (${ecgMetrics.stDeviationMv > 0 ? '+' : ''}${ecgMetrics.stDeviationMv} mV at J+60ms, HR ${ecgMetrics.bpm} BPM, QTc ${ecgMetrics.qtcMs} ms), indicating potential myocardial ischemic injury compared to baseline.`;
+      } else if (ecgMetrics.bpmNum > activeProfile.hrHigh) {
+        ecgFindings = `Elevated heart rate detected at ${ecgMetrics.bpm} BPM (R-R ${ecgMetrics.avgRrMs} ms, QTc ${ecgMetrics.qtcMs} ms), indicating Sinus Tachycardia above the ${activeProfile.name} upper limit (${activeProfile.hrHigh} BPM).`;
+      } else if (ecgMetrics.bpmNum > 0 && ecgMetrics.bpmNum < activeProfile.hrLow) {
+        ecgFindings = `Reduced heart rate detected at ${ecgMetrics.bpm} BPM (R-R ${ecgMetrics.avgRrMs} ms, QTc ${ecgMetrics.qtcMs} ms), indicating Sinus Bradycardia below the ${activeProfile.name} lower limit (${activeProfile.hrLow} BPM).`;
+      } else if (ecgMetrics.correlationPct > 0 && ecgMetrics.correlationPct < 70) {
+        ecgFindings = `Irregular QRS morphology detected (${ecgMetrics.correlationPct}% MIT-BIH match, SDNN ${ecgMetrics.rrStdDev} ms), consistent with Premature Ventricular Contractions (PVCs).`;
+      } else {
+        ecgFindings = `Normal Sinus Rhythm confirmed at ${ecgMetrics.bpm} BPM (R-R ${ecgMetrics.avgRrMs} ms, ST ${ecgMetrics.stDeviationMv >= 0 ? '+' : ''}${ecgMetrics.stDeviationMv} mV, QTc ${ecgMetrics.qtcMs} ms) with ${ecgMetrics.correlationPct}% MIT-BIH template match.`;
+      }
+
+      const emgFindings = emgFatigued
+        ? `Surface EMG spectral analysis shows a downward shift in Median Frequency to ${emgSpec.medianFreq} Hz (below the 52 Hz threshold), indicating localized neuromuscular fatigue.`
+        : `Surface EMG spectrum remains balanced with a Median Frequency of ${emgSpec.medianFreq} Hz (dominant frequency ${emgSpec.dominantFreq} Hz), indicating normal unfatigued muscle activation.`;
+
+      const eegFindings = `Neural EEG monitoring shows dominant spectral activity at ${eegSpec.dominantFreq} Hz within the Alpha/Beta rhythm band.`;
+
+      const summaryBox = document.getElementById('clinicalSummaryBox');
+      summaryBox.className = (ecgAbnormal || emgFatigued || ecgMetrics.isLeadOff) ? 'summary-box alarm-summary' : 'summary-box';
+      summaryBox.innerHTML = `
+        <strong>Automated Clinical Analysis Summary (Doctor / Technical View):</strong><br/>
+        • <strong>Cardiac (ECG):</strong> ${ecgFindings}<br/>
+        • <strong>Neuromuscular (sEMG):</strong> ${emgFindings}<br/>
+        • <strong>Neural (EEG):</strong> ${eegFindings}
+      `;
+
+      let plainHeart = '';
+      if (ecgMetrics.isLeadOff) {
+        plainHeart = 'The chest sensor stickers are loose or disconnected, so your heartbeat could not be measured properly. Please check that all three pads are firmly pressed onto the skin.';
+      } else if (Math.abs(ecgMetrics.stDeviationMv) >= activeProfile.stLimit) {
+        plainHeart = `Your heartbeat pattern shows signs of extra heart strain or reduced blood flow (heart rate is ${ecgMetrics.bpm} beats per minute). A doctor should review this right away.`;
+      } else if (ecgMetrics.bpmNum > activeProfile.hrHigh) {
+        plainHeart = `Your heart is beating faster than usual at ${ecgMetrics.bpm} beats per minute (normal resting speed is ${activeProfile.hrLow} to ${activeProfile.hrHigh} beats per minute). This can happen from exercise, stress, fever, or a fast heart rhythm.`;
+      } else if (ecgMetrics.bpmNum > 0 && ecgMetrics.bpmNum < activeProfile.hrLow) {
+        plainHeart = `Your heart is beating slower than usual at ${ecgMetrics.bpm} beats per minute (normal resting speed is ${activeProfile.hrLow} to ${activeProfile.hrHigh} beats per minute).`;
+      } else if (ecgMetrics.correlationPct > 0 && ecgMetrics.correlationPct < 70) {
+        plainHeart = `Your heart skipped or added an extra irregular beat (${ecgMetrics.bpm} beats per minute). Occasional extra beats can be harmless, though frequent ones should be checked by a doctor.`;
+      } else {
+        plainHeart = `Your heart is beating steadily and normally at ${ecgMetrics.bpm} beats per minute, with a healthy, regular rhythm.`;
+      }
+
+      const plainMuscle = emgFatigued
+        ? 'Your muscle activity signals show signs of tiredness (muscle fatigue), meaning the muscle has been working hard and needs rest.'
+        : 'Your muscles are relaxed and working normally with no signs of tiredness or strain.';
+
+      const plainBrain = 'Your brainwave activity looks calm, steady, and typical for an awake, resting state.';
+
+      const isAnyAlert = ecgAbnormal || emgFatigued || ecgMetrics.isLeadOff;
+      const plainNextStep = isAnyAlert
+        ? 'Recommended Next Step: Share this printed report with a doctor or nurse so they can check the flagged reading.'
+        : 'Recommended Next Step: Everything looks normal—no immediate action is needed.';
+
+      const patientBox = document.getElementById('patientFriendlySummaryBox');
+      patientBox.style.background = isAnyAlert ? '#fff7ed' : '#eff6ff';
+      patientBox.style.borderColor = isAnyAlert ? '#fed7aa' : '#bfdbfe';
+      patientBox.style.borderLeftColor = isAnyAlert ? '#ea580c' : '#2563eb';
+      patientBox.innerHTML = `
+        <strong>In Simple Words (Easy-to-Read Summary):</strong><br/>
+        • <strong>Your Heart:</strong> ${plainHeart}<br/>
+        • <strong>Your Muscles:</strong> ${plainMuscle}<br/>
+        • <strong>Your Brain Activity:</strong> ${plainBrain}<br/>
+        • <strong>${plainNextStep}</strong>
+      `;
+    }
+
+    function renderLoop() {
+      framesThisSec++;
+      const showRaw = document.getElementById('chkShowRaw').checked;
+      renderer.drawHospitalSweep(sweepFiltered, sweepRaw, writeCursor, showRaw, currentGain, currentAlert > 0, currentMode);
+      renderer.drawMorphologyOrFatigue(currentMode, latestTimeMetrics, latestSpectrum);
+      renderer.drawPoincarePlot(latestTimeMetrics.rrHistoryMs, currentAlert > 0);
+      renderer.drawFFT(latestSpectrum.magnitudes, latestSpectrum.peakHold);
+      renderer.drawWaterfall();
+      requestAnimationFrame(renderLoop);
+    }
+    requestAnimationFrame(renderLoop);
+
+    setInterval(() => {
+      const hrEl = document.getElementById('kpi1Val');
+      const rateBreach = currentMode === 'ECG' && (latestTimeMetrics.bpmNum > activeProfile.hrHigh || (latestTimeMetrics.bpmNum > 0 && latestTimeMetrics.bpmNum < activeProfile.hrLow));
+      const isAlarm = currentAlert > 0 || rateBreach || latestTimeMetrics.isLeadOff;
+
+      hrEl.textContent = currentMode === 'ECG' ? latestTimeMetrics.bpm : latestTimeMetrics.vpp;
+      hrEl.className = isAlarm ? 'vital-num-hr alarm' : 'vital-num-hr';
+
+      const stEl = document.getElementById('kpiStVal');
+      const stVal = latestTimeMetrics.stDeviationMv;
+      stEl.textContent = currentMode === 'ECG' ? `${stVal >= 0 ? '+' : ''}${stVal.toFixed(2)}` : '--';
+      stEl.style.color = Math.abs(stVal) >= activeProfile.stLimit ? '#ef4444' : '#22c55e';
+
+      document.getElementById('kpiQtcVal').textContent = currentMode === 'ECG' ? latestTimeMetrics.qtcMs : '--';
+      document.getElementById('kpiRrVal').textContent = currentMode === 'ECG' ? latestTimeMetrics.avgRrMs : '--';
+      document.getElementById('kpiVpp').textContent = latestTimeMetrics.vpp;
+      document.getElementById('kpiDomFreq').textContent = latestSpectrum.dominantFreq;
+      document.getElementById('kpiMdf').textContent = latestSpectrum.medianFreq;
+      document.getElementById('kpiCorr').textContent = currentMode === 'ECG' ? latestTimeMetrics.correlationPct : '--';
+      document.getElementById('morphBadge').textContent = currentMode === 'ECG' ? `Corr: ${latestTimeMetrics.correlationPct}%` : `MDF: ${latestSpectrum.medianFreq} Hz`;
+      document.getElementById('sdnnBadge').textContent = `SDNN: ${latestTimeMetrics.rrStdDev} ms`;
+
+      const ai = dsp.classifyEdgeAI(latestTimeMetrics, latestSpectrum, currentMode, currentAlert, activeProfile, engine.preset);
+      document.getElementById('aiLatencyBadge').textContent = ai.uncertain ? 'ABSTAIN / LOW CONF' : `Infer: ${ai.inferMs} ms`;
+      document.getElementById('probNormal').textContent = `${ai.normal}%`;
+      document.getElementById('barNormal').style.width = `${ai.normal}%`;
+      document.getElementById('probArr').textContent = `${ai.arrhythmia}%`;
+      document.getElementById('barArr').style.width = `${ai.arrhythmia}%`;
+      document.getElementById('probFatigue').textContent = `${ai.fatigue}%`;
+      document.getElementById('barFatigue').style.width = `${ai.fatigue}%`;
+      document.getElementById('probNoise').textContent = `${ai.noise}%`;
+      document.getElementById('barNoise').style.width = `${ai.noise}%`;
+
+      const noteEl = document.getElementById('aiGuardrailNote');
+      noteEl.textContent = ai.guardrailMsg;
+      noteEl.className = ai.uncertain ? 'guardrail-note uncertain' : 'guardrail-note';
+
+      updateSnapshotComparison();
+    }, 250);
+
+    setInterval(() => {
+      document.getElementById('fpsStat').textContent = framesThisSec;
+      document.getElementById('ppsStat').textContent = samplesThisSec;
+      framesThisSec = 0;
+      samplesThisSec = 0;
+    }, 1000);
+
+    setInterval(updateComprehensiveReport, 1500);
+
+    function updateAlertBanner(code, isAlarm) {
+      const banner = document.getElementById('alertBanner');
+      const title = document.getElementById('alertTitle');
+      const badge = document.getElementById('codeBadge');
+
+      if (isAlarm) {
+        banner.className = 'alert-banner danger';
+        if (latestTimeMetrics.isLeadOff) title.textContent = 'SENSOR ALARM: Electrode Lead-Off / Signal Saturation';
+        else if (Math.abs(latestTimeMetrics.stDeviationMv) >= activeProfile.stLimit) title.textContent = `ISCHEMIA ALERT: ST-Segment Elevation (${latestTimeMetrics.stDeviationMv} mV)`;
+        else if (code === 2) title.textContent = 'MUSCLE ALARM (10): Neuromuscular Fatigue Spectral Shift';
+        else title.textContent = `CARDIAC ALARM (01): Rate/Rhythm Outside ${activeProfile.name} Limits`;
+      } else {
+        banner.className = 'alert-banner normal';
+        title.textContent = engine.preset === 'manual'
+          ? 'Manual Injector Mode — Tap "Inject 1 Heartbeat" or Press SPACEBAR'
+          : `Normal Sinus / Baseline Bio-Signal — ${activeProfile.name} Sweep Active`;
+      }
+      badge.textContent = `HW STATUS: 0${code}`;
+    }
+
+    function appendAnomalyLog(desc) {
+      const log = document.getElementById('eventLog');
+      if (log.querySelector('.log-empty')) log.innerHTML = '';
+      if (log.children.length > 0 && Date.now() - (log._lastTs || 0) < 2500) return;
+      log._lastTs = Date.now();
+
+      const row = document.createElement('div');
+      row.className = 'log-row';
+      const time = new Date().toLocaleTimeString();
+      row.innerHTML = `<span class="log-tag-err">[${time}] ${desc}</span><span>Profile: ${activeProfile.name} | HR: ${latestTimeMetrics.bpm} BPM | ST: ${latestTimeMetrics.stDeviationMv}mV</span>`;
+      log.prepend(row);
+    }
+
+    document.getElementById('careProfileSelect').addEventListener('change', (e) => {
+      activeProfile = CARE_PROFILES[e.target.value] || CARE_PROFILES.ICU;
+      document.getElementById('avatarProfileTag').textContent = activeProfile.name;
+      document.getElementById('hrLimitsLabel').textContent = `Limits: ${activeProfile.hrLow} – ${activeProfile.hrHigh} BPM`;
+    });
+
+    document.getElementById('sweepSpeedSelect').addEventListener('change', (e) => {
+      SWEEP_LEN = parseInt(e.target.value, 10) || 600;
+      sweepFiltered = new Uint8Array(SWEEP_LEN).fill(128);
+      sweepRaw = new Uint8Array(SWEEP_LEN).fill(128);
+      writeCursor = 0;
+    });
+
+    function injectSingleBeat() {
+      if (isPaused) {
+        isPaused = false;
+        document.getElementById('btnFreeze').textContent = 'Freeze & Calipers';
+        document.getElementById('btnFreeze').classList.remove('active');
+      }
+      switchMode('ECG');
+      engine.triggerManualHeartbeat(engine.preset === 'pvc');
+    }
+
+    document.getElementById('btnManualBeat').addEventListener('click', injectSingleBeat);
+    window.addEventListener('keydown', (e) => {
+      if (e.code === 'Space' && document.activeElement.tagName !== 'BUTTON' && document.activeElement.tagName !== 'INPUT') {
+        e.preventDefault();
+        injectSingleBeat();
+      }
+    });
+
+    scopeCanvas.addEventListener('click', (e) => {
+      if (!isPaused) {
+        document.getElementById('caliperReadout').textContent = 'Tip: Click "Freeze & Calipers" first to freeze the ICU trace and measure Δt / ΔV.';
+        return;
+      }
+      const rect = scopeCanvas.getBoundingClientRect();
+      const xNorm = (e.clientX - rect.left) / rect.width;
+      const yNorm = (e.clientY - rect.top) / rect.height;
+
+      if (renderer.calipers.length >= 2) renderer.calipers = [];
+      renderer.calipers.push({ xNorm, yNorm });
+
+      if (renderer.calipers.length === 1) {
+        document.getElementById('caliperReadout').textContent = 'Caliper 1 placed — click a second point to calculate Δt (ms), BPM, and ΔV (mV).';
+      } else if (renderer.calipers.length === 2) {
+        const totalMs = (SWEEP_LEN / 250) * 1000;
+        const dtMs = Math.abs(renderer.calipers[1].xNorm - renderer.calipers[0].xNorm) * totalMs;
+        const equivBpm = dtMs > 10 ? Math.round(60000 / dtMs) : '--';
+        const dvMv = Math.abs(renderer.calipers[1].yNorm - renderer.calipers[0].yNorm) * (3300 / currentGain);
+        document.getElementById('caliperReadout').innerHTML =
+          `<strong>Caliper Measurement:</strong> Δt = <strong>${dtMs.toFixed(1)} ms</strong> (${equivBpm} BPM) | ΔV = <strong>${dvMv.toFixed(0)} mV</strong>`;
+      }
+    });
+
+    document.getElementById('btnUsb').addEventListener('click', async () => {
+      try { if (engine.activeType === 'USB') await engine.disconnectHardware(); else await engine.connectUSB(); }
+      catch (err) { alert(err.message); }
+    });
+
+    document.getElementById('btnBle').addEventListener('click', async () => {
+      try { if (engine.activeType === 'BLE') await engine.disconnectHardware(); else await engine.connectBLE(); }
+      catch (err) { alert(err.message); }
+    });
+
+    document.getElementById('btnAudio').addEventListener('click', (e) => {
+      audioEnabled = !audioEnabled;
+      e.target.textContent = audioEnabled ? 'QRS Beep: ON' : 'QRS Beep: OFF';
+      e.target.classList.toggle('active', audioEnabled);
+      if (audioEnabled) triggerHeartFlashAndBeep(false);
+    });
+
+    function triggerReportAndPrint() {
+      updateComprehensiveReport();
+      setTimeout(() => window.print(), 150);
+    }
+
+    document.getElementById('btnGenReport').addEventListener('click', triggerReportAndPrint);
+    document.getElementById('btnRefreshReport').addEventListener('click', triggerReportAndPrint);
+
+    document.querySelectorAll('.preset-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.preset-btn').forEach((b) => b.classList.remove('active'));
+        btn.classList.add('active');
+        engine.preset = btn.dataset.preset;
+        engine.leadOff = false;
+        document.getElementById('btnLeadOff').classList.remove('active');
+
+        const targetMode = engine.preset === 'fatigue' ? 'sEMG' : engine.preset === 'eeg' ? 'EEG' : 'ECG';
+        switchMode(targetMode);
+        if (engine.preset === 'manual') engine.triggerManualHeartbeat(false);
+      });
+    });
+
+    document.getElementById('humSlider').addEventListener('input', (e) => {
+      engine.humLevel = parseInt(e.target.value, 10) / 100;
+      document.getElementById('humVal').textContent = `${e.target.value}%`;
+    });
+
+    document.getElementById('driftSlider').addEventListener('input', (e) => {
+      engine.driftLevel = parseInt(e.target.value, 10) / 100;
+      document.getElementById('driftVal').textContent = `${e.target.value}%`;
+    });
+
+    document.getElementById('btnLeadOff').addEventListener('click', (e) => {
+      engine.leadOff = !engine.leadOff;
+      e.target.classList.toggle('active', engine.leadOff);
+    });
+
+    document.getElementById('csvFileInput').addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const parsed = [];
+      for (const line of (await file.text()).split(/\r?\n/)) {
+        for (const c of line.split(',')) {
+          const num = parseFloat(c.trim());
+          if (!Number.isNaN(num)) {
+            let scaled = num;
+            if (num >= -2 && num <= 2) scaled = ((num + 1) / 2) * 255;
+            else if (num > 2 && num <= 5) scaled = (num / 3.3) * 255;
+            parsed.push(Math.max(0, Math.min(255, Math.round(scaled))));
+            break;
+          }
+        }
+      }
+      if (parsed.length >= 64) {
+        engine.csvSamples = parsed;
+        engine.csvCursor = 0;
+        engine.activeType = 'CSV';
+        document.getElementById('connText').textContent = `CSV (${parsed.length} pts)`;
+      }
+    });
+
+    function switchMode(mode) {
+      currentMode = mode;
+      document.querySelectorAll('.seg-btn').forEach((b) => b.classList.toggle('active', b.dataset.mode === mode));
+      dsp.reset();
+      renderer.clearWaterfall();
+      document.getElementById('kpi1Label').textContent = mode === 'ECG' ? 'ECG HR (BPM)' : mode === 'sEMG' ? 'sEMG Vpp (V)' : 'EEG Vpp (V)';
+      document.getElementById('icuLeadLabel').textContent =
+        mode === 'ECG' ? 'II • ECG 25 mm/s • 1.0 mV/cm • FILTERED' :
+        mode === 'sEMG' ? 'CH1 • FOREARM sEMG ENVELOPE • 20–120 HZ' : 'FP1-FP2 • EEG ALPHA/BETA • 0.5–40 HZ';
+      document.getElementById('morphTitle').textContent =
+        mode === 'sEMG' ? 'sEMG Neuromuscular Fatigue Decay Curve' : 'MIT-BIH Reference vs. Live Beat';
+    }
+
+    document.querySelectorAll('.seg-btn').forEach((btn) => btn.addEventListener('click', () => switchMode(btn.dataset.mode)));
+    document.getElementById('gainSelect').addEventListener('change', (e) => { currentGain = parseFloat(e.target.value); });
+
+    document.getElementById('btnFreeze').addEventListener('click', (e) => {
+      isPaused = !isPaused;
+      renderer.calipers = [];
+      e.target.textContent = isPaused ? 'Resume Sweep' : 'Freeze & Calipers';
+      e.target.classList.toggle('active', isPaused);
+      document.getElementById('caliperReadout').textContent = isPaused
+        ? 'Sweep frozen — click two points on the screen to measure Δt (ms) and ΔV (mV).'
+        : 'Sweeping Erase-Bar Trace • Click "Freeze & Calipers" to measure Δt / ΔV';
+    });
+
+    document.getElementById('btnClear').addEventListener('click', () => {
+      sweepFiltered.fill(128);
+      sweepRaw.fill(128);
+      writeCursor = 0;
+      chronoBuffer = new Array(512).fill(128);
+      renderer.calipers = [];
+      dsp.reset();
+      renderer.clearWaterfall();
+      recordedRows = [];
+    });
+
+    document.getElementById('btnClearStrips').addEventListener('click', () => {
+      document.getElementById('alarmStripsContainer').innerHTML =
+        '<div class="log-empty">No alarm strips captured yet. Trigger Tachycardia, PVC, ST-Elevation, or Fatigue to auto-capture a strip.</div>';
+    });
+
+    document.getElementById('btnClearLog').addEventListener('click', () => {
+      document.getElementById('eventLog').innerHTML = '<div class="log-empty">No anomaly events recorded. System monitoring active.</div>';
+    });
+
+    document.getElementById('btnExport').addEventListener('click', () => {
+      if (recordedRows.length === 0) { alert('No signal data captured yet.'); return; }
+      const csv = 'timestamp_ms,mode,raw_adc_8bit,filtered_adc_8bit,hw_status\n' + recordedRows.join('\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `icu_biosignal_${currentMode}_${Date.now()}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+
+    document.getElementById('btnFhirExport').addEventListener('click', () => {
+      const sampleStr = chronoBuffer.slice(-250).join(' ');
+      const fhirBundle = {
+        resourceType: 'Observation',
+        id: `spartan6-telemetry-${Date.now()}`,
+        status: 'final',
+        category: [{ coding: [{ system: 'http://terminology.hl7.org/CodeSystem/observation-category', code: 'vital-signs' }] }],
+        code: {
+          coding: [{ system: 'http://loinc.org', code: currentMode === 'ECG' ? '8867-4' : '85354-9', display: `Spartan-6 ${currentMode} Waveform & Telemetry` }]
+        },
+        effectiveDateTime: new Date().toISOString(),
+        device: { display: 'Spartan-6 FPGA + AD8232 + Edge-AI Bedside Monitor (250 Hz)' },
+        component: [
+          { code: { text: 'Heart Rate (BPM)' }, valueQuantity: { value: latestTimeMetrics.bpmNum || 0, unit: 'beats/min' } },
+          { code: { text: 'ST-Segment Deviation' }, valueQuantity: { value: latestTimeMetrics.stDeviationMv, unit: 'mV' } },
+          { code: { text: 'Corrected QT Interval (QTc)' }, valueQuantity: { value: Number(latestTimeMetrics.qtcMs) || 0, unit: 'ms' } },
+          {
+            code: { text: `${currentMode} 250 Hz Sampled Waveform` },
+            valueSampledData: {
+              origin: { value: 0, unit: 'V' },
+              period: 4,
+              factor: 0.01294,
+              dimensions: 1,
+              data: sampleStr
+            }
+          }
+        ]
+      };
+      const blob = new Blob([JSON.stringify(fhirBundle, null, 2)], { type: 'application/fhir+json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `hl7_fhir_observation_${currentMode}_${Date.now()}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+
+    setTimeout(updateComprehensiveReport, 300);
+  })();
+  </script>
+</body>
+</html>
