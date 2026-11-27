@@ -474,7 +474,7 @@
         </div>
         <button id="btnUsb" class="btn btn-dark">Connect USB (115200)</button>
         <button id="btnBle" class="btn btn-primary">Connect BLE</button>
-        <button id="btnAudio" class="btn btn-outline">QRS Beep: OFF</button>
+        <button id="btnAudio" class="btn btn-outline" title="Cycle QRS/Alarm Beep Level (Shortcut: M)">Beep: OFF</button>
         <button id="btnGenReport" class="btn btn-accent">Print 3-Signal Report</button>
       </div>
     </header>
@@ -488,7 +488,7 @@
     <!-- Live Signal Quality & Electrode Status Strip -->
     <section class="sqi-bar no-print">
       <span style="color:#475569; font-weight:600;">
-        Shortcuts: <kbd>Space</kbd> Freeze/Resume • <kbd>S</kbd> Save Snapshot • <kbd>R</kbd> Jump to Report
+        Shortcuts: <kbd>Space</kbd> Freeze/Resume • <kbd>S</kbd> Save Snapshot • <kbd>R</kbd> Report • <kbd>M</kbd> Beep Mode
       </span>
       <div class="sqi-pills">
         <span id="sqiRateBadge" class="sqi-badge">Stream: 250 Hz</span>
@@ -518,7 +518,7 @@
         <div class="studio-group">
           <span class="micro-label">1. LIVE HEARTBEAT INJECTOR & CLINICAL RHYTHM PRESETS</span>
           <div class="preset-btns">
-            <button id="btnManualBeat" class="btn-inject-manual" title="Shortcut: Inject beat">
+            <button id="btnManualBeat" class="btn-inject-manual" title="Inject a single simulated beat">
               ♥ Inject 1 Heartbeat
             </button>
             <button class="preset-btn active" data-preset="normal">Auto: Normal (75 BPM)</button>
@@ -872,6 +872,9 @@
       OR: { name: 'OR', hrLow: 45, hrHigh: 110, stLimit: 0.12 },
       STEPDOWN: { name: 'STEP-DOWN', hrLow: 50, hrHigh: 130, stLimit: 0.20 },
     };
+
+    const BEEP_MODES = ['OFF', 'SOFT', 'ICU'];
+    const BEEP_GAINS = { OFF: 0, SOFT: 0.035, ICU: 0.11 };
 
     class BioDSP {
       constructor(sampleRate = 250, fftSize = 64) {
@@ -1461,7 +1464,6 @@
         }
         ctx.stroke();
 
-        // Subtle R-Peak & Beat Markers on Sweep
         if (showPeakMarkers && mode === 'ECG') {
           this.rPeakMarkers.forEach((pkIdx) => {
             if (pkIdx >= 0 && pkIdx < len && !isGap(pkIdx)) {
@@ -1774,13 +1776,31 @@
     let sustainedAlarmCounter = 0;
     let lastStripCaptureTime = 0;
     let isPaused = false;
-    let audioEnabled = false;
+    let beepModeIndex = 0; // 0 = OFF, 1 = SOFT, 2 = ICU
     let audioCtx = null;
     let lastBeepTime = 0;
     let samplesThisSec = 0;
     let framesThisSec = 0;
     let liveRateHz = 250;
     let recordedRows = [];
+
+    function playShapedTone(freq, startOffsetSec, durationSec, peakGain) {
+      if (!audioCtx || peakGain <= 0) return;
+      const now = audioCtx.currentTime + startOffsetSec;
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, now);
+
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.linearRampToValueAtTime(peakGain, now + 0.006);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + durationSec);
+
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start(now);
+      osc.stop(now + durationSec + 0.01);
+    }
 
     function triggerHeartFlashAndBeep(isAlarm = false) {
       const icon = document.getElementById('heartIcon');
@@ -1792,20 +1812,38 @@
         svgHeart.classList.remove('pulse');
       }, 140);
 
-      if (!audioEnabled) return;
+      const modeName = BEEP_MODES[beepModeIndex];
+      if (modeName === 'OFF' || isPaused || latestTimeMetrics.isLeadOff) return;
+
+      const baseGain = BEEP_GAINS[modeName];
       try {
         if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        const osc = audioCtx.createOscillator();
-        const gain = audioCtx.createGain();
-        osc.type = 'sine';
-        osc.frequency.value = isAlarm ? 520 : 880;
-        gain.gain.setValueAtTime(0.09, audioCtx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.06);
-        osc.connect(gain);
-        gain.connect(audioCtx.destination);
-        osc.start();
-        osc.stop(audioCtx.currentTime + 0.06);
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+
+        if (isAlarm) {
+          // Distinct two-tone bedside alarm cadence
+          playShapedTone(660, 0, 0.07, baseGain);
+          playShapedTone(520, 0.11, 0.08, baseGain);
+        } else {
+          // Soft single QRS tone
+          playShapedTone(880, 0, 0.055, baseGain * 0.75);
+        }
       } catch (_) {}
+    }
+
+    function cycleBeepMode(explicitIndex = null) {
+      beepModeIndex = explicitIndex !== null ? explicitIndex : (beepModeIndex + 1) % BEEP_MODES.length;
+      const label = BEEP_MODES[beepModeIndex];
+      const btn = document.getElementById('btnAudio');
+      btn.textContent = `Beep: ${label}`;
+      btn.classList.toggle('active', label !== 'OFF');
+      if (label !== 'OFF') {
+        try {
+          if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+          if (audioCtx.state === 'suspended') audioCtx.resume();
+          playShapedTone(880, 0, 0.05, BEEP_GAINS[label] * 0.65);
+        } catch (_) {}
+      }
     }
 
     function updatePatientAvatar(isAlarm) {
@@ -1914,9 +1952,13 @@
         if (chronoBuffer.length > 512) chronoBuffer.shift();
         capturedModalities[currentMode] = chronoBuffer.slice(-300);
 
+        const rateBreach = currentMode === 'ECG' && (latestTimeMetrics.bpmNum > activeProfile.hrHigh || (latestTimeMetrics.bpmNum > 0 && latestTimeMetrics.bpmNum < activeProfile.hrLow));
+        const stBreach = currentMode === 'ECG' && Math.abs(latestTimeMetrics.stDeviationMv) >= activeProfile.stLimit;
+        const isConditionAlarm = hwStatusByte > 0 || rateBreach || stBreach;
+
         if (currentMode === 'ECG' && filteredVal > 205 && performance.now() - lastBeepTime > 260) {
           lastBeepTime = performance.now();
-          triggerHeartFlashAndBeep(hwStatusByte > 0);
+          triggerHeartFlashAndBeep(isConditionAlarm);
         }
 
         fftChunk.push(filteredVal);
@@ -1926,19 +1968,19 @@
           latestTimeMetrics = dsp.analyzeChronological(chronoBuffer);
           fftChunk = [];
 
-          const rateBreach = currentMode === 'ECG' && (latestTimeMetrics.bpmNum > activeProfile.hrHigh || (latestTimeMetrics.bpmNum > 0 && latestTimeMetrics.bpmNum < activeProfile.hrLow));
-          const stBreach = currentMode === 'ECG' && Math.abs(latestTimeMetrics.stDeviationMv) >= activeProfile.stLimit;
-          const isConditionAlarm = hwStatusByte > 0 || rateBreach || stBreach || latestTimeMetrics.isLeadOff;
+          const postRateBreach = currentMode === 'ECG' && (latestTimeMetrics.bpmNum > activeProfile.hrHigh || (latestTimeMetrics.bpmNum > 0 && latestTimeMetrics.bpmNum < activeProfile.hrLow));
+          const postStBreach = currentMode === 'ECG' && Math.abs(latestTimeMetrics.stDeviationMv) >= activeProfile.stLimit;
+          const postAlarm = hwStatusByte > 0 || postRateBreach || postStBreach || latestTimeMetrics.isLeadOff;
 
-          if (isConditionAlarm) sustainedAlarmCounter++;
+          if (postAlarm) sustainedAlarmCounter++;
           else sustainedAlarmCounter = 0;
 
-          updateAlertBanner(hwStatusByte, isConditionAlarm);
-          updatePatientAvatar(isConditionAlarm);
+          updateAlertBanner(hwStatusByte, postAlarm);
+          updatePatientAvatar(postAlarm);
 
           if (sustainedAlarmCounter >= 3) {
             const label = latestTimeMetrics.isLeadOff ? 'LEAD-OFF FAULT' :
-                          stBreach ? `ST-ELEVATION (${latestTimeMetrics.stDeviationMv}mV)` :
+                          postStBreach ? `ST-ELEVATION (${latestTimeMetrics.stDeviationMv}mV)` :
                           hwStatusByte === 2 ? 'sEMG FATIGUE' :
                           latestTimeMetrics.bpmNum > activeProfile.hrHigh ? `TACHYCARDIA (${latestTimeMetrics.bpm} BPM)` :
                           (latestTimeMetrics.bpmNum > 0 && latestTimeMetrics.bpmNum < activeProfile.hrLow) ? `BRADYCARDIA (${latestTimeMetrics.bpm} BPM)` :
@@ -2196,7 +2238,6 @@
       document.getElementById('morphBadge').textContent = currentMode === 'ECG' ? `Corr: ${latestTimeMetrics.correlationPct}%` : `MDF: ${latestSpectrum.medianFreq} Hz`;
       document.getElementById('sdnnBadge').textContent = `SDNN: ${latestTimeMetrics.rrStdDev} ms`;
 
-      // Signal Quality Badges
       const sqiRate = document.getElementById('sqiRateBadge');
       sqiRate.textContent = `Stream: ${liveRateHz} Hz`;
       sqiRate.className = (liveRateHz >= 200 && liveRateHz <= 300) ? 'sqi-badge' : 'sqi-badge warn';
@@ -2311,6 +2352,9 @@
         e.preventDefault();
         updateComprehensiveReport();
         document.getElementById('clinicalReportSection').scrollIntoView({ behavior: 'smooth' });
+      } else if (e.key === 'm' || e.key === 'M') {
+        e.preventDefault();
+        cycleBeepMode();
       }
     });
 
@@ -2368,12 +2412,7 @@
       catch (err) { alert(err.message); }
     });
 
-    document.getElementById('btnAudio').addEventListener('click', (e) => {
-      audioEnabled = !audioEnabled;
-      e.target.textContent = audioEnabled ? 'QRS Beep: ON' : 'QRS Beep: OFF';
-      e.target.classList.toggle('active', audioEnabled);
-      if (audioEnabled) triggerHeartFlashAndBeep(false);
-    });
+    document.getElementById('btnAudio').addEventListener('click', () => cycleBeepMode());
 
     function triggerReportAndPrint() {
       updateComprehensiveReport();
